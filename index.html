@@ -4,27 +4,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Trading Control</title>
+    <title>Trading Control</title>
 
     <!-- Color de la barra de estado en móviles -->
     <meta name="theme-color" content="#1a1a1a">
 
-    <!-- Enlace al Manifiesto de Aplicación Web (incrustado y corregido) -->
-    <link rel="manifest" href="manifest.json">
+    <!-- Enlace al Manifiesto de Aplicación Web -->
+    <link rel="manifest" href="static/manifest.json">
 
-    <!-- Icono para dispositivos Apple (muy importante para accesos directos) -->
-    <link rel="apple-touch-icon" href="logo.jpg">
+    <!-- Icono para dispositivos Apple -->
+    <link rel="apple-touch-icon" href="static/logo.jpg">
 
     <!-- Icono básico para pestañas de navegador (Favicon) -->
-    <link rel="icon" type="image/jpeg" href="logo.jpg">
+    <link rel="icon" type="image/jpeg" href="static/logo.jpg">
 
-    <meta name="theme-color" content="#1a1a1a">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <style>
-[El resto del contenido del archivo index.html se mantiene exactamente igual - todo el CSS y HTML que ya tienes]
-    </style>
 </head>
-[... resto del contenido HTML ...]
+<body>
+<!-- Aquí iría todo tu contenido HTML actual -->
+<script>
+// Actualizar la ruta del service worker para GitHub Pages
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('static/sw.js')
+        .then(reg => console.log('SW registrado correctamente'))
+        .catch(err => console.log('Error registrando SW:', err));
+}
+
+// Resto de tu JavaScript actual...
+</script>
+</body>
 </html>
