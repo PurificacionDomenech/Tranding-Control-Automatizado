@@ -1,31 +1,45 @@
+
 const CACHE_NAME = 'trading-control-v1';
 const urlsToCache = [
-  './',
-  './index.html',
-  './manifest.json',
-  './icon.png',
-  './logo.jpg'
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/logo.jpg',
+  '/icon.png'
 ];
 
-// Instalar Service Worker
-self.addEventListener('install', function(event) {
+self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(function(cache) {
+      .then((cache) => {
+        console.log('Cache abierto');
         return cache.addAll(urlsToCache);
       })
   );
 });
 
-// Interceptar peticiones
-self.addEventListener('fetch', function(event) {
+self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request)
-      .then(function(response) {
+      .then((response) => {
         if (response) {
           return response;
         }
         return fetch(event.request);
       })
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
   );
 });
