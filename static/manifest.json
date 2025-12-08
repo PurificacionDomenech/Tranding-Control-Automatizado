@@ -1,0 +1,24 @@
+{
+    "name": "Trading Control",
+    "short_name": "Trading Control",
+    "description": "Aplicación de control y seguimiento de trading",
+    "start_url": "./",
+    "display": "standalone",
+    "theme_color": "#1a1a1a",
+    "background_color": "#1a1a1a",
+    "orientation": "portrait",
+    "scope": "./",
+    "icons": [
+        {
+            "src": "./icon.png",
+            "sizes": "64x64",
+            "type": "image/png",
+            "purpose": "any maskable"
+        } , 
+           {
+          "src": "logo.jpg",
+          "sizes": "1024x1024",
+          "type": "image/jpeg"
+        }
+    ]
+}

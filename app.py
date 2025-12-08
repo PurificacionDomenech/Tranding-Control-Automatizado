@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, send_from_directory, Response
 import os
 
 app = Flask(__name__)
@@ -7,16 +7,28 @@ app = Flask(__name__)
 def index():
     return render_template('index.html')
 
-@app.route('/api/trades', methods=['GET'])
-def get_trades():
-    # Placeholder for future trading data
-    return jsonify([])
+@app.route('/manifest.json')
+def manifest():
+    return send_from_directory('static', 'manifest.json')
 
-@app.route('/api/trades', methods=['POST'])
-def add_trade():
-    # Placeholder for adding trading records
-    data = request.get_json()
-    return jsonify({'status': 'success', 'message': 'Trade registered'}), 201
+@app.route('/logo.jpg')
+def logo():
+    return send_from_directory('static', 'logo.jpg')
+
+@app.route('/icon.png')
+def icon():
+    return send_from_directory('static', 'icon.png')
+
+@app.route('/sw.js')
+def service_worker():
+    return send_from_directory('static', 'sw.js', mimetype='application/javascript')
+
+@app.after_request
+def add_header(response):
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
