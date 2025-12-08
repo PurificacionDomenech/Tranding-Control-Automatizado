@@ -1,12 +1,12 @@
-from flask import Flask, send_from_directory, Response
+from flask import Flask, render_template, send_from_directory
 import os
 
-app = Flask(__name__, static_folder='.', static_url_path='')
+app = Flask(__name__)
 
 @app.route('/')
 @app.route('/index.html')
 def index():
-    return send_from_directory('.', 'index.html')
+    return render_template('index.html')
 
 @app.route('/manifest.json')
 def manifest():
@@ -23,6 +23,10 @@ def icon():
 @app.route('/sw.js')
 def service_worker():
     return send_from_directory('static', 'sw.js', mimetype='application/javascript')
+
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    return send_from_directory('static', filename)
 
 @app.after_request
 def add_header(response):
