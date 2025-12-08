@@ -1,10 +1,10 @@
-
 const CACHE_NAME = 'trading-control-v1';
 const urlsToCache = [
   './',
   './index.html',
   './manifest.json',
-  './images/icon.png'
+  './icon.png',
+  './logo.jpg'
 ];
 
 // Instalar Service Worker
@@ -22,11 +22,9 @@ self.addEventListener('fetch', function(event) {
   event.respondWith(
     caches.match(event.request)
       .then(function(response) {
-        // Si está en caché, devolverlo
         if (response) {
           return response;
         }
-        // Si no, hacer petición normal
         return fetch(event.request);
       })
   );
