@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -19,6 +19,7 @@
 
     <meta name="theme-color" content="#1a1a1a">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
 
@@ -28,7 +29,7 @@
 }
 
 
- 
+
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -62,28 +63,104 @@
             font-size: 18px;
         }
 
+        :root {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --bg-tertiary: #3a3a3a;
+            --text-primary: #ffffff;
+            --text-secondary: #b3b3b3;
+            --accent-color: #00f2ea;
+            --accent-hover: #00f2eaba;
+            --danger-color: #dc3545;
+            --danger-hover: #c82333;
+            --success-color: #28a745;
+            --border-color: #4b5563;
+        }
+
+        body.light-mode {
+            --bg-primary: #f5f7fa;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f0f2f5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #6c757d;
+            --border-color: #e1e4e8;
+            --accent-color: #00838f;
+            --accent-hover: #006064;
+            --success-color: #00695c;
+            --danger-color: #ad1457;
+            --danger-hover: #880e4f;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        .container {
+            background-color: var(--bg-secondary);
+        }
+
         .account-controls {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
             margin-bottom: 20px;
-            padding: 10px;
-            background-color: #2d2d2d;
-            border-radius: 5px;
+            padding: 15px;
+            background-color: var(--bg-secondary);
+            border-radius: 8px;
         }
 
         .account-controls select {
-            flex-grow: 1;
-            margin-right: 10px;
-            background-color: #1a1a1a;
-            border: 1px solid #4b5563;
-            color: #ffffff;
-            padding: 8px;
-            border-radius: 4px;
+            flex: 1;
+            min-width: 150px;
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 10px 12px;
+            border-radius: 6px;
         }
 
-        .account-controls button {
-            margin-left: 5px;
+        .account-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .account-actions {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+            align-items: center;
+        }
+
+        .account-controls .button-small,
+        .account-controls .theme-toggle {
+            min-width: 100px;
+            height: 38px;
+            padding: 8px 12px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+        }
+
+        .theme-toggle {
+            background: none;
+            border: 2px solid var(--accent-color);
+            color: var(--accent-color);
+            min-width: 50px !important;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .theme-toggle:hover {
+            background-color: var(--accent-color);
+            color: var(--bg-primary);
         }
 
         .tabs {
@@ -111,7 +188,7 @@
             background-color: #00f2eac7;
             color: #000000;
         }
-   
+
         .tab-content {
               display: none;
          }
@@ -121,7 +198,7 @@
 
        .retos-seccion-bloque {
           margin-bottom: 2rem; /* Añade un espacio entre las secciones Semanal, Mensual e Historial */
-        
+
         }
 
         .form-group {
@@ -184,6 +261,15 @@
             background-color: #00d4d0c2;
         }
 
+        .button-primary {
+            background-color: #00f2ea;
+            color: #000000;
+        }
+
+        .button-primary:hover {
+            background-color: #00d4d0;
+        }
+
         .button-secondary {
             background-color: #58f5e8b7;
         }
@@ -204,6 +290,290 @@
             width: auto;
             padding: 5px 10px;
             font-size: 14px;
+        }
+
+        /* Light mode additional styles */
+        body.light-mode .container {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        body.light-mode .tab {
+            background-color: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        body.light-mode .tab:hover,
+        body.light-mode .tab.active {
+            background-color: var(--accent-color);
+            color: #000000;
+        }
+
+        body.light-mode input,
+        body.light-mode select,
+        body.light-mode textarea {
+            background-color: var(--bg-secondary);
+            border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        body.light-mode .dashboard-card {
+            background-color: var(--bg-secondary);
+            border-color: var(--border-color);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        body.light-mode .dashboard-card h3 {
+            color: var(--text-primary);
+        }
+
+        body.light-mode .stat-box {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        body.light-mode .stat-box h4 {
+            color: var(--text-secondary);
+        }
+
+        body.light-mode .stat-box p {
+            color: var(--text-primary);
+        }
+
+        body.light-mode th {
+            background-color: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        body.light-mode tr:nth-child(even) {
+            background-color: var(--bg-tertiary);
+        }
+
+        body.light-mode td {
+            color: var(--text-primary);
+            border-color: var(--border-color);
+        }
+
+        body.light-mode .modal-content {
+            background-color: var(--bg-secondary);
+        }
+
+        body.light-mode .button-small {
+            border-color: var(--border-color);
+        }
+
+        body.light-mode .button-secondary {
+            background-color: var(--accent-color);
+            color: #ffffff;
+            border-color: var(--accent-color);
+        }
+
+        body.light-mode .button-danger {
+            background-color: var(--danger-color);
+            color: #ffffff;
+            border-color: var(--danger-color);
+        }
+
+        body.light-mode .positive {
+            color: #00695c;
+            font-weight: 600;
+        }
+
+        body.light-mode .negative {
+            color: #ad1457;
+            font-weight: 600;
+        }
+
+        body.light-mode .theme-toggle {
+            border-color: var(--accent-color);
+            color: var(--text-primary);
+        }
+
+        body.light-mode .progress-container {
+            background-color: var(--bg-tertiary);
+        }
+
+        body.light-mode input,
+        body.light-mode select,
+        body.light-mode textarea {
+            background-color: var(--bg-secondary);
+            border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        body.light-mode .checklist-item {
+            background-color: var(--bg-secondary);
+            border-color: var(--border-color);
+        }
+
+        body.light-mode .checklist-item label {
+            color: var(--text-primary);
+        }
+
+        body.light-mode .retos-container,
+        body.light-mode .estadisticas-semanales {
+            background-color: var(--bg-secondary);
+            border-color: var(--border-color);
+        }
+
+        /* Estilos específicos para Retos Semanales en modo claro */
+        body.light-mode .reto-section {
+            background-color: var(--bg-secondary);
+            border-color: var(--border-color);
+        }
+
+        body.light-mode .reto-input {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            border-color: var(--border-color);
+        }
+
+        body.light-mode .dias-grid {
+            background-color: var(--bg-secondary);
+            border-color: var(--border-color);
+        }
+
+        body.light-mode .dias-grid-header span {
+            color: var(--text-secondary);
+        }
+
+        body.light-mode .dia-linea {
+            background-color: transparent;
+        }
+
+        body.light-mode .dia-linea:hover {
+            background-color: var(--bg-tertiary);
+        }
+
+        body.light-mode .dia-nombre-lineal {
+            color: var(--text-primary);
+        }
+
+        body.light-mode .btn-cumplido-check,
+        body.light-mode .btn-no-cumplido-check {
+            background-color: var(--bg-tertiary);
+            border-color: var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        body.light-mode .btn-cumplido-check.active {
+            background-color: var(--success-color);
+            border-color: var(--success-color);
+            color: white;
+        }
+
+        body.light-mode .btn-no-cumplido-check.active {
+            background-color: var(--danger-color);
+            border-color: var(--danger-color);
+            color: white;
+        }
+
+        body.light-mode .resultado-selector-lineal select {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            border-color: var(--border-color);
+        }
+
+        body.light-mode .estadisticas {
+            background-color: var(--bg-secondary);
+            border-color: var(--border-color);
+        }
+
+        body.light-mode .stat-card {
+            background-color: var(--bg-primary);
+            border-color: var(--border-color);
+        }
+
+        body.light-mode .stat-number {
+            color: var(--accent-color);
+        }
+
+        body.light-mode .stat-label {
+            color: var(--text-secondary);
+        }
+
+        body.light-mode .chart-container {
+            background-color: var(--bg-primary);
+            border-color: var(--border-color);
+        }
+
+        body.light-mode .monthly-stats {
+            background-color: var(--bg-secondary);
+            border-color: var(--border-color);
+        }
+
+        body.light-mode .historial {
+            background-color: var(--bg-secondary);
+            border-color: var(--border-color);
+        }
+
+        body.light-mode .historial-item {
+            background-color: transparent;
+            border-bottom-color: var(--border-color);
+        }
+
+        body.light-mode .historial-item:hover {
+            background-color: var(--bg-tertiary);
+        }
+
+        body.light-mode .historial-fecha {
+            color: var(--accent-color);
+        }
+
+        body.light-mode .historial-stats,
+        body.light-mode .historial-reto {
+            color: var(--text-secondary);
+        }
+
+        body.light-mode .btn-ver-semana,
+        body.light-mode .btn-eliminar-semana {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        body.light-mode .btn-eliminar-semana {
+            background-color: var(--danger-color);
+        }
+
+        body.light-mode .btn-finalizar {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        body.light-mode .btn-editar-reto,
+        body.light-mode .btn-guardar-reto {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        body.light-mode .week-nav button {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        body.light-mode .week-nav button:hover {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        body.light-mode .current-week {
+            color: var(--accent-color);
+        }
+
+        body.light-mode h1, 
+        body.light-mode h2, 
+        body.light-mode h3, 
+        body.light-mode h4 {
+            color: var(--text-primary);
+        }
+
+        body.light-mode p,
+        body.light-mode span,
+        body.light-mode label {
+            color: var(--text-primary);
+        }
+
+        body.light-mode .drawdown-info {
+            color: var(--text-secondary);
         }
 
         table {
@@ -434,6 +804,10 @@
             background-color: rgba(37, 176, 191, 0.2);
         }
 
+        #listaTareas li span {
+            color: #ffffff;
+        }
+
         #listaTareas input[type="checkbox"] {
             width: 20px;
             height: 20px;
@@ -450,6 +824,22 @@
             margin-left: auto;
             color: #10abb9;
             font-weight: bold;
+        }
+
+        body.light-mode #listaTareas li {
+            background-color: var(--bg-secondary);
+        }
+
+        body.light-mode #listaTareas li span {
+            color: var(--text-primary);
+        }
+
+        body.light-mode #listaTareas li.completed {
+            background-color: rgba(0, 131, 143, 0.15);
+        }
+
+        body.light-mode #listaTareas .completed span {
+            color: #6c757d;
         }
 
         .objetivos-container {
@@ -1037,7 +1427,7 @@
 /* --- Media Queries para Responsividad --- */
 
 @media (max-width: 768px) {
-   
+
 
     .stats-grid {
         grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
@@ -1108,12 +1498,59 @@
     </style>
 </head>
 <body>
-    <div class="container">
+    <!-- Sección de Autenticación -->
+    <div id="auth-container" style="display: block;">
+        <div class="container" style="max-width: 400px; margin-top: 50px;">
+            <h1>Trading Control</h1>
+
+            <!-- Formulario de Login -->
+            <div id="login-form" style="margin-bottom: 30px;">
+                <h2>Iniciar Sesión</h2>
+                <div class="form-group">
+                    <label for="login-email">Email:</label>
+                    <input type="email" id="login-email" required placeholder="correo@ejemplo.com">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Contraseña:</label>
+                    <input type="password" id="login-password" required placeholder="Introduce tu contraseña">
+                </div>
+                <button onclick="handleLogin()">Iniciar Sesión</button>
+                <p style="text-align: center; margin-top: 15px;">
+                    ¿No tienes cuenta? <a href="#" onclick="toggleAuthForms()" style="color: #00f2ea;">Regístrate aquí</a>
+                </p>
+            </div>
+
+            <!-- Formulario de Registro -->
+            <div id="register-form" style="display: none;">
+                <h2>Registro</h2>
+                <div class="form-group">
+                    <label for="register-email">Email:</label>
+                    <input type="email" id="register-email" required placeholder="correo@ejemplo.com">
+                </div>
+                <div class="form-group">
+                    <label for="register-password">Contraseña:</label>
+                    <input type="password" id="register-password" required placeholder="Mínimo 6 caracteres">
+                </div>
+                <button onclick="handleRegister()">Registrarse</button>
+                <p style="text-align: center; margin-top: 15px;">
+                    ¿Ya tienes cuenta? <a href="#" onclick="toggleAuthForms()" style="color: #00f2ea;">Inicia sesión aquí</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="container" id="app-container" style="display: none;">
         <h1>Trading Control</h1>
         <div class="account-controls">
             <select id="account-selector" onchange="setActiveAccount(this.value)"></select>
-            <button onclick="openCreateAccountModal()" class="button-small button-secondary">Nueva Cuenta</button>
-            <button onclick="confirmDeleteAccount()" class="button-small button-danger">Eliminar</button>
+            <div class="account-buttons">
+                <button onclick="openCreateAccountModal()" class="button-small button-secondary">Nueva Cuenta</button>
+                <button onclick="confirmDeleteAccount()" class="button-small button-danger">Eliminar Cuenta</button>
+            </div>
+            <div class="account-actions">
+                <button onclick="toggleTheme()" class="theme-toggle" id="theme-toggle" title="Cambiar tema">🌙</button>
+                <button id="logout-button" onclick="handleLogout()" class="button-small button-danger">Cerrar Sesión</button>
+            </div>
         </div>
 
         <div class="tabs">
@@ -1167,7 +1604,7 @@
                     <div class="stat-box"><h4>Objetivo Mensual</h4><p id="monthly-goal-display">0.00 €</p>
                     <p id="monthly-progress-percentage">0%</p></div>
                 </div>
-             
+
                     <h3 style="margin-top: 20px;">Metas</h3>
                     <div id="journal-entries"></div>
             </div>
@@ -1177,13 +1614,13 @@
               <canvas id="capitalGrowthChart"></canvas>
                 </div>
             </div>
-        
-            
+
+
             <div class="dashboard-card">
                 <h3>Operaciones Recientes</h3>
                 <div id="recent-operations"><p>No hay operaciones recientes para mostrar.</p></div>
             </div>
-      
+
         </div>
         <!-- Checklist -->
      <!-- Checklist -->
@@ -1335,7 +1772,7 @@
             <button type="submit">Guardar Operación</button>
         </form>
  </div>
- 
+
 <!-- Historial  -->
  <div id="historial" class="tab-content">
         <div class="filter-controls">
@@ -1380,7 +1817,7 @@
                 <tbody id="operations-list"></tbody>
             </table>
         </div>
-        
+
         <div class="dashboard-card">
             <h3>Operaciones por Día de la Semana</h3>
             <div class="card-stats" id="weekly-performance"></div>
@@ -1389,7 +1826,7 @@
           <div class="card-stats" id="weekly-success-rate"></div>
        </div>
         </div>
-       
+
         <div class="dashboard-card" style="margin-top: 30px;">
             <h3>Historial de Metas Conseguidas</h3>
             <p>Aquí se muestran las metas que has completado. ¡Sigue así!</p>
@@ -1397,7 +1834,7 @@
                 <!-- Las metas completadas se cargarán aquí -->
             </div>
         </div>
-      
+
 
  </div>
 
@@ -1418,7 +1855,7 @@
                 </div>
                     </div>
              <div class="form-group">
-                     
+
                 <div class="objetivos">
                     <h3>Objetivos</h3>
                     <div class="form-group">
@@ -1432,14 +1869,14 @@
                         <p id="monthly-progress-detailed">Progreso: 0.00 € / 0.00 € (0%)</p>
                     </div>
                     <button onclick="saveGoals()">Guardar Objetivos</button>
-                   
+
                     <div class="card-stats" id="journal-stats-container"></div>
-                    
+
                 </div>
             </div>
         </div>
 </div>
-  
+
 <!-- Retos Semanales -->
 <div id="Retos" class="tab-content">
 
@@ -1569,17 +2006,314 @@
           </div>
          </div>
         </div>
-    
+
+        <div id="edit-modal" class="settings-modal">
+            <div class="modal-content" style="max-width: 600px;">
+                <span class="close-modal" onclick="closeEditModal()">&times;</span>
+                <h2>Editar Operación</h2>
+                <input type="hidden" id="edit-operation-id">
+                <div class="form-group">
+                    <label for="edit-date">Fecha:</label>
+                    <input type="date" id="edit-date" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-type">Tipo:</label>
+                    <select id="edit-type">
+                        <option value="">Sin tipo</option>
+                        <option value="bullish">Alcista (Long)</option>
+                        <option value="bearish">Bajista (Short)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit-activo">Activo:</label>
+                    <input type="text" id="edit-activo" placeholder="Ej: MNQ, MES, ES">
+                </div>
+                <div class="form-group">
+                    <label for="edit-estrategia">Estrategia:</label>
+                    <input type="text" id="edit-estrategia" placeholder="Ej: Breakout, Pullback">
+                </div>
+                <div class="form-group">
+                    <label for="edit-contracts">Contratos:</label>
+                    <input type="number" id="edit-contracts" min="1">
+                </div>
+                <div class="form-group">
+                    <label for="edit-entry-type">Tipo Entrada:</label>
+                    <input type="text" id="edit-entry-type" placeholder="Ej: Market, Limit">
+                </div>
+                <div class="form-group">
+                    <label for="edit-exit-type">Tipo Salida:</label>
+                    <input type="text" id="edit-exit-type" placeholder="Ej: Stop Loss, Take Profit">
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="edit-entry-time">Hora Entrada:</label>
+                        <input type="time" id="edit-entry-time" step="1">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="edit-exit-time">Hora Salida:</label>
+                        <input type="time" id="edit-exit-time" step="1">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-amount">Importe (€):</label>
+                    <input type="text" id="edit-amount" placeholder="Ej: 150.50 o -75.20">
+                </div>
+                <div class="form-group">
+                    <label for="edit-mood">Estado de Ánimo:</label>
+                    <select id="edit-mood">
+                        <option value="">Sin especificar</option>
+                        <option value="😊 Positivo">😊 Positivo</option>
+                        <option value="😐 Neutral">😐 Neutral</option>
+                        <option value="😟 Ansioso">😟 Ansioso</option>
+                        <option value="😠 Frustrado">😠 Frustrado</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit-notes">Notas:</label>
+                    <textarea id="edit-notes" rows="3" placeholder="Notas adicionales..."></textarea>
+                </div>
+                <div class="modal-buttons">
+                    <button class="button-secondary" onclick="closeEditModal()">Cancelar</button>
+                    <button class="button-primary" onclick="saveEditedOperation()">Guardar Cambios</button>
+                </div>
+            </div>
+        </div>
+
 
     <script>
+        // --- Supabase Initialization ---
+        const SUPABASE_URL = 'https://bjjjutlfinxdwmifskdw.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable__Xw6vD7jogaABU81E_0HAA_mVOQFmLJ';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // --- API Configuration ---
+        // IMPORTANTE: Cambia esta URL por la URL de tu backend API en Replit
+        const API_BASE_URL = 'https://trading-control-api.tu-usuario.repl.co';
+
+        // --- API Helper Functions ---
+        async function fetchOperacionesFromAPI(cuentaId) {
+            try {
+                const url = cuentaId 
+                    ? `${API_BASE_URL}/operaciones?cuenta_id=${cuentaId}`
+                    : `${API_BASE_URL}/operaciones`;
+
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error HTTP: ${response.status}`);
+                }
+
+                const data = await response.json();
+                return data.operaciones || [];
+            } catch (error) {
+                console.error('Error al obtener operaciones de la API:', error);
+                return [];
+            }
+        }
+
+        async function saveOperacionToAPI(operacionData) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/operacion`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(operacionData)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `Error HTTP: ${response.status}`);
+                }
+
+                const data = await response.json();
+                return { success: true, data: data };
+            } catch (error) {
+                console.error('Error al guardar operacion en la API:', error);
+                return { success: false, error: error.message };
+            }
+        }
+
+        async function deleteOperacionFromAPI(operacionId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/operacion/${operacionId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `Error HTTP: ${response.status}`);
+                }
+
+                return { success: true };
+            } catch (error) {
+                console.error('Error al eliminar operacion de la API:', error);
+                return { success: false, error: error.message };
+            }
+        }
+
+        // Funcion para mapear datos de la API al formato del frontend
+        function mapAPIOperationToFrontend(apiOp) {
+            return {
+                id: apiOp.id,
+                date: apiOp.fecha_operacion,
+                type: apiOp.tipo_operacion,
+                activo: apiOp.instrumento || 'N/A',
+                estrategia: apiOp.estrategia || 'N/A',
+                contracts: apiOp.contratos,
+                entryTime: apiOp.hora_entrada,
+                exitTime: apiOp.hora_salida,
+                duration: calculateDuration(apiOp.hora_entrada, apiOp.hora_salida),
+                amount: parseFloat(apiOp.resultado_pnl) || 0,
+                notes: apiOp.notas_psicologia || '',
+                mood: '',
+                newsRating: 0,
+                media: apiOp.captura_url || null,
+                entryPrice: apiOp.precio_entrada,
+                exitPrice: apiOp.precio_salida
+            };
+        }
+
+        // Funcion para mapear datos del frontend al formato de la API
+        // Nota: No enviamos media base64 a la API (captura_url espera URL, no base64)
+        function mapFrontendOperationToAPI(frontendOp, cuentaId) {
+            return {
+                cuenta_id: cuentaId,
+                instrumento: frontendOp.activo,
+                estrategia: frontendOp.estrategia,
+                fecha_operacion: frontendOp.date,
+                hora_entrada: frontendOp.entryTime,
+                hora_salida: frontendOp.exitTime,
+                precio_entrada: frontendOp.entryPrice || null,
+                precio_salida: frontendOp.exitPrice || null,
+                contratos: frontendOp.contracts,
+                resultado_pnl: frontendOp.amount,
+                tipo_operacion: frontendOp.type,
+                notas_psicologia: frontendOp.notes,
+                captura_url: null // Media se maneja localmente por ahora
+            };
+        }
+
+        // --- Authentication Functions ---
+        async function handleLogin() {
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+
+            if (!email || !password) {
+                alert('Por favor, completa todos los campos.');
+                return;
+            }
+
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+
+                if (error) throw error;
+
+                alert('Inicio de sesión exitoso');
+                checkAuthState();
+            } catch (error) {
+                alert('Error al iniciar sesión: ' + error.message);
+            }
+        }
+
+        async function handleRegister() {
+            const email = document.getElementById('register-email').value.trim();
+            const password = document.getElementById('register-password').value;
+
+            if (!email || !password) {
+                alert('Por favor, completa todos los campos.');
+                return;
+            }
+
+            if (password.length < 6) {
+                alert('La contraseña debe tener al menos 6 caracteres.');
+                return;
+            }
+
+            try {
+                const { data, error } = await supabase.auth.signUp({
+                    email: email,
+                    password: password
+                });
+
+                if (error) throw error;
+
+                alert('Registro exitoso. Por favor, verifica tu email antes de iniciar sesión.');
+                toggleAuthForms();
+            } catch (error) {
+                alert('Error al registrarse: ' + error.message);
+            }
+        }
+
+        async function handleLogout() {
+            if (!confirm('¿Estás seguro de que quieres cerrar sesión?')) {
+                return;
+            }
+
+            try {
+                const { error } = await supabase.auth.signOut();
+                if (error) throw error;
+
+                alert('Sesión cerrada correctamente');
+                checkAuthState();
+            } catch (error) {
+                alert('Error al cerrar sesión: ' + error.message);
+            }
+        }
+
+        function toggleAuthForms() {
+            const loginForm = document.getElementById('login-form');
+            const registerForm = document.getElementById('register-form');
+
+            if (loginForm.style.display === 'none') {
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
+            } else {
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
+            }
+        }
+
+        async function checkAuthState() {
+            const { data: { session } } = await supabase.auth.getSession();
+
+            if (session) {
+                document.getElementById('auth-container').style.display = 'none';
+                document.getElementById('app-container').style.display = 'block';
+            } else {
+                document.getElementById('auth-container').style.display = 'block';
+                document.getElementById('app-container').style.display = 'none';
+            }
+        }
+
+        // Escuchar cambios en el estado de autenticación
+        supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN') {
+                checkAuthState();
+            } else if (event === 'SIGNED_OUT') {
+                checkAuthState();
+            }
+        });
+
         // --- Constants ---
         const ACCOUNTS_KEY = 'tradingAccounts';
         const ACTIVE_ACCOUNT_KEY = 'tradingActiveAccount';
-       
+
 function getChecklistItemsForAccount() {
     const key = `checklist_items_${currentAccountId}`;
     const storedItems = localStorage.getItem(key);
-    
+
     if (storedItems) {
         return JSON.parse(storedItems);
     } else {
@@ -1598,7 +2332,7 @@ function getChecklistItemsForAccount() {
     }
 }
 
-        // --- State toggleGoalAchieved    ---
+        // --- State ---
         let accounts = [];
         let currentAccountId = null;
         let operations = [];
@@ -1669,22 +2403,22 @@ function getChecklistItemsForAccount() {
     // Si el archivo es una imagen, la procesamos. Si es un vídeo, lo ignoramos.
     if (file.type.startsWith('image/')) {
         const reader = new FileReader();
-        
+
         reader.onload = function(event) {
             const img = new Image();
             img.src = event.target.result;
-            
+
             img.onload = function() {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                
+
                 // Define las nuevas dimensiones máximas
                 const MAX_WIDTH = 800;
                 const MAX_HEIGHT = 600;
-                
+
                 let width = img.width;
                 let height = img.height;
-                
+
                 // Calcula las nuevas dimensiones manteniendo la proporción
                 if (width > height) {
                     if (width > MAX_WIDTH) {
@@ -1697,22 +2431,22 @@ function getChecklistItemsForAccount() {
                         height = MAX_HEIGHT;
                     }
                 }
-                
+
                 canvas.width = width;
                 canvas.height = height;
-                
+
                 // Dibuja la imagen redimensionada en el canvas
                 ctx.drawImage(img, 0, 0, width, height);
-                
+
                 // Convierte el canvas a un DataURL de imagen JPG con calidad del 75%
                 // El formato 'image/jpeg' es más eficiente en espacio que 'image/png'
                 const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
-                
+
                 // Devuelve la imagen comprimida
                 callback(compressedDataUrl);
             };
         };
-        
+
         reader.readAsDataURL(file);
 
     } else if (file.type.startsWith('video/')) {
@@ -1758,7 +2492,7 @@ function getChecklistItemsForAccount() {
     checklistItems.forEach((tarea, index) => {
         const li = document.createElement('li');
         li.className = estadoTareas[index] ? 'completed' : '';
-        
+
         if (isEditMode) {
             // MODO EDICIÓN: Muestra un campo de texto y un botón de borrar
             li.innerHTML = `
@@ -1782,12 +2516,12 @@ let isChecklistEditMode = false;
 
 function toggleChecklistEditMode() {
     isChecklistEditMode = !isChecklistEditMode; // Invierte el estado (true/false)
-    
+
     // Muestra u oculta los botones y el formulario de añadir tarea
     document.getElementById('edit-checklist-btn').style.display = isChecklistEditMode ? 'none' : 'inline-block';
     document.getElementById('save-checklist-btn').style.display = isChecklistEditMode ? 'inline-block' : 'none';
     document.getElementById('add-task-container').style.display = isChecklistEditMode ? 'block' : 'none';
-    
+
     // Vuelve a dibujar el checklist en el modo correspondiente
     showChecklist(isChecklistEditMode);
 }
@@ -1798,11 +2532,11 @@ function saveChecklistChanges() {
     inputs.forEach(input => {
         newChecklistItems.push(input.value);
     });
-    
+
     // Guarda la nueva lista personalizada en el localStorage
     const key = `checklist_items_${currentAccountId}`;
     localStorage.setItem(key, JSON.stringify(newChecklistItems));
-    
+
     // Sal del modo edición
     toggleChecklistEditMode();
     alert('¡Lista de tareas guardada!');
@@ -1811,15 +2545,15 @@ function saveChecklistChanges() {
 function addNewChecklistItem() {
     const input = document.getElementById('new-task-input');
     const newTaskText = input.value.trim();
-    
+
     if (newTaskText) {
         const currentItems = getChecklistItemsForAccount();
         currentItems.push(newTaskText);
-        
+
         // Guarda la lista actualizada temporalmente para que se muestre
         const key = `checklist_items_${currentAccountId}`;
         localStorage.setItem(key, JSON.stringify(currentItems));
-        
+
         input.value = ''; // Limpia el campo
         showChecklist(true); // Refresca la vista en modo edición
     }
@@ -1830,10 +2564,10 @@ function removeChecklistItem(indexToRemove) {
         let currentItems = getChecklistItemsForAccount();
         // Filtra el array para quitar el elemento en la posición 'indexToRemove'
         currentItems = currentItems.filter((_, index) => index !== indexToRemove);
-        
+
         const key = `checklist_items_${currentAccountId}`;
         localStorage.setItem(key, JSON.stringify(currentItems));
-        
+
         showChecklist(true); // Refresca la vista en modo edición
     }
 }
@@ -1902,16 +2636,27 @@ function removeChecklistItem(indexToRemove) {
             }
         }
 
-        function setActiveAccount(id) {
+        async function setActiveAccount(id) {
             currentAccountId = id;
             localStorage.setItem(ACTIVE_ACCOUNT_KEY, currentAccountId);
             const settingsKey = getSettingsKey(currentAccountId);
             const storedSettings = localStorage.getItem(settingsKey);
             settings = storedSettings ? JSON.parse(storedSettings) : { initialBalance: 50000, consistencyPercentage: 40, trailingDrawdownAmount: 2500 };
-            const opsKey = getOperationsKey(currentAccountId);
-            const storedOperations = localStorage.getItem(opsKey);
-            operations = storedOperations ? JSON.parse(storedOperations) : [];
-            operations.sort((a, b) => new Date(a.date + 'T' + (a.entryTime || '00:00:00')) - new Date(b.date + 'T' + (b.entryTime || '00:00:00')));
+
+            // Cargar operaciones desde la API
+            try {
+                const apiOperaciones = await fetchOperacionesFromAPI(currentAccountId);
+                operations = apiOperaciones.map(mapAPIOperationToFrontend);
+                operations.sort((a, b) => new Date(a.date + 'T' + (a.entryTime || '00:00:00')) - new Date(b.date + 'T' + (b.entryTime || '00:00:00')));
+                console.log('Operaciones cargadas desde API:', operations.length);
+            } catch (error) {
+                console.error('Error cargando operaciones desde API, usando localStorage como fallback:', error);
+                const opsKey = getOperationsKey(currentAccountId);
+                const storedOperations = localStorage.getItem(opsKey);
+                operations = storedOperations ? JSON.parse(storedOperations) : [];
+                operations.sort((a, b) => new Date(a.date + 'T' + (a.entryTime || '00:00:00')) - new Date(b.date + 'T' + (b.entryTime || '00:00:00')));
+            }
+
             const journalsKey = getJournalsKey(currentAccountId);
             const storedJournals = localStorage.getItem(journalsKey);
             journals = storedJournals ? JSON.parse(storedJournals) : [];
@@ -2077,33 +2822,33 @@ function removeChecklistItem(indexToRemove) {
 
     const date = dateInput.value;
     const type = typeInput.value || null;
-    
+
     // Obtener activo (personalizado o seleccionado)
     let activo = activoSelect.value;
     if (activo === 'custom') {
         activo = customActivoInput.value.trim();
     }
-    
+
     // Obtener estrategia (personalizada o seleccionada)
     let estrategia = estrategiaSelect.value;
     if (estrategia === 'custom') {
         estrategia = customEstrategiaInput.value.trim();
     }
-    
+
     const contracts = parseInt(contractsInput.value) || null;
-    
+
     // Obtener tipo de entrada (personalizado o seleccionado)
     let entryType = entryTypeSelect.value;
     if (entryType === 'custom') {
         entryType = customEntryTypeInput.value.trim();
     }
-    
+
     // Obtener tipo de salida (personalizado o seleccionado)
     let exitType = exitTypeSelect.value;
     if (exitType === 'custom') {
         exitType = customExitTypeInput.value.trim();
     }
-    
+
     const entryTime = entryTimeInput.value || null;
     const exitTime = exitTimeInput.value || null;
     const amount = parseAmount(amountInput.value);
@@ -2119,7 +2864,7 @@ function removeChecklistItem(indexToRemove) {
     if (entryTime && !/^\d{2}:\d{2}(:\d{2})?$/.test(entryTime)) { alert('Formato hora entrada inválido.'); return; }
     if (exitTime && !/^\d{2}:\d{2}(:\d{2})?$/.test(exitTime)) { alert('Formato hora salida inválido.'); return; }
 
-    readFileAsDataURL(mediaInput.files[0], (mediaData) => {
+    readFileAsDataURL(mediaInput.files[0], async (mediaData) => {
         const operation = {
             id: Date.now(),
             date,
@@ -2138,35 +2883,209 @@ function removeChecklistItem(indexToRemove) {
             newsRating,
             media: mediaData
         };
-        operations.push(operation);
-        operations.sort((a, b) => new Date(a.date + 'T' + (a.entryTime || '00:00:00')) - new Date(b.date + 'T' + (b.entryTime || '00:00:00')));
-        calculateHwmAndDrawdownFloor();
-        saveData();
-        alert('Operación guardada.');
-        
-        // Reset form
-        document.getElementById('trading-form').reset();
-        document.getElementById('date').value = new Date().toISOString().split('T')[0];
-        document.getElementById('custom-activo-input').style.display = 'none';
-        document.getElementById('custom-estrategia-input').style.display = 'none';
-        document.getElementById('custom-entry-type-input').style.display = 'none';
-        document.getElementById('custom-exit-type-input').style.display = 'none';
-        setNewsRating(0);
-        
-        updateUI();
+
+        // Guardar en la API (sin enviar media base64, solo URL si existe)
+        const apiData = mapFrontendOperationToAPI(operation, currentAccountId);
+        const result = await saveOperacionToAPI(apiData);
+
+        if (result.success) {
+            // Si la API devuelve el ID, usarlo
+            if (result.data && result.data.datos && result.data.datos[0]) {
+                operation.id = result.data.datos[0].id;
+            }
+            operations.push(operation);
+            operations.sort((a, b) => new Date(a.date + 'T' + (a.entryTime || '00:00:00')) - new Date(b.date + 'T' + (b.entryTime || '00:00:00')));
+            calculateHwmAndDrawdownFloor();
+            saveData();
+            alert('✓ Operación guardada en la base de datos.\n\nPuedes editarla desde el Historial para añadir más detalles (notas, foto, etc.)');
+
+            // Reset form
+            document.getElementById('trading-form').reset();
+            document.getElementById('date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('custom-activo-input').style.display = 'none';
+            document.getElementById('custom-estrategia-input').style.display = 'none';
+            document.getElementById('custom-entry-type-input').style.display = 'none';
+            document.getElementById('custom-exit-type-input').style.display = 'none';
+            setNewsRating(0);
+
+            updateUI();
+        } else {
+            // Fallback: guardar localmente si la API falla
+            console.warn('API no disponible, guardando localmente:', result.error);
+            operations.push(operation);
+            operations.sort((a, b) => new Date(a.date + 'T' + (a.entryTime || '00:00:00')) - new Date(b.date + 'T' + (b.entryTime || '00:00:00')));
+            calculateHwmAndDrawdownFloor();
+            saveData();
+            alert('✓ Operación guardada localmente.\n\n(La API no está disponible, los datos se sincronizarán cuando el backend esté activo)');
+
+            // Reset form
+            document.getElementById('trading-form').reset();
+            document.getElementById('date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('custom-activo-input').style.display = 'none';
+            document.getElementById('custom-estrategia-input').style.display = 'none';
+            document.getElementById('custom-entry-type-input').style.display = 'none';
+            document.getElementById('custom-exit-type-input').style.display = 'none';
+            setNewsRating(0);
+
+            updateUI();
+        }
     });
 });
 
-function deleteOperation(id) {
+async function deleteOperation(id) {
             if (confirm('¿Eliminar esta operación?')) {
-                operations = operations.filter(op => op.id !== id);
-                calculateHwmAndDrawdownFloor();
-                saveData();
-                updateUI();
-                alert('Operación eliminada.');
+                // Intentar eliminar de la API primero
+                const result = await deleteOperacionFromAPI(id);
+
+                if (result.success) {
+                    // Solo eliminar localmente si la API tuvo exito
+                    operations = operations.filter(op => op.id !== id);
+                    calculateHwmAndDrawdownFloor();
+                    saveData();
+                    updateUI();
+                    alert('Operación eliminada de la base de datos.');
+                } else {
+                    // Fallback: eliminar localmente si falla la API
+                    console.warn('API no disponible, eliminando localmente:', result.error);
+                    operations = operations.filter(op => op.id !== id);
+                    calculateHwmAndDrawdownFloor();
+                    saveData();
+                    updateUI();
+                    alert('Operación eliminada localmente.\n\n(La API no está disponible)');
+                }
             }
         }
-        
+
+        // --- Edit Operation Functions ---
+        function openEditModal(id) {
+            const op = operations.find(op => op.id === id);
+            if (!op) return;
+
+            document.getElementById('edit-operation-id').value = op.id;
+            document.getElementById('edit-date').value = op.date;
+            document.getElementById('edit-type').value = op.type || '';
+            document.getElementById('edit-activo').value = op.activo || '';
+            document.getElementById('edit-estrategia').value = op.estrategia || '';
+            document.getElementById('edit-contracts').value = op.contracts || '';
+            document.getElementById('edit-entry-type').value = op.entryType || '';
+            document.getElementById('edit-exit-type').value = op.exitType || '';
+            document.getElementById('edit-entry-time').value = op.entryTime || '';
+            document.getElementById('edit-exit-time').value = op.exitTime || '';
+            document.getElementById('edit-amount').value = op.amount || '';
+            document.getElementById('edit-mood').value = op.mood || '';
+            document.getElementById('edit-notes').value = op.notes || '';
+
+            document.getElementById('edit-modal').style.display = 'flex';
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-modal').style.display = 'none';
+        }
+
+        async function saveEditedOperation() {
+            const id = parseInt(document.getElementById('edit-operation-id').value);
+            const opIndex = operations.findIndex(op => op.id === id);
+            if (opIndex === -1) {
+                alert('Operación no encontrada.');
+                return;
+            }
+
+            const date = document.getElementById('edit-date').value;
+            const amount = parseAmount(document.getElementById('edit-amount').value);
+
+            if (!date || isNaN(amount)) {
+                alert('Fecha e Importe son obligatorios.');
+                return;
+            }
+
+            const entryTime = document.getElementById('edit-entry-time').value || null;
+            const exitTime = document.getElementById('edit-exit-time').value || null;
+
+            // Preparar operacion actualizada
+            const updatedOperation = {
+                ...operations[opIndex],
+                date: date,
+                type: document.getElementById('edit-type').value || null,
+                activo: document.getElementById('edit-activo').value || 'N/A',
+                estrategia: document.getElementById('edit-estrategia').value || 'N/A',
+                contracts: parseInt(document.getElementById('edit-contracts').value) || null,
+                entryType: document.getElementById('edit-entry-type').value || null,
+                exitType: document.getElementById('edit-exit-type').value || null,
+                entryTime: entryTime,
+                exitTime: exitTime,
+                duration: calculateDuration(entryTime, exitTime),
+                amount: amount,
+                mood: document.getElementById('edit-mood').value || '',
+                notes: document.getElementById('edit-notes').value || ''
+            };
+
+            // Intentar actualizar en la API
+            const apiData = mapFrontendOperationToAPI(updatedOperation, currentAccountId);
+            apiData.id = id;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/operacion/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(apiData)
+                });
+
+                if (response.ok) {
+                    operations[opIndex] = updatedOperation;
+                    operations.sort((a, b) => new Date(a.date + 'T' + (a.entryTime || '00:00:00')) - new Date(b.date + 'T' + (b.entryTime || '00:00:00')));
+                    calculateHwmAndDrawdownFloor();
+                    saveData();
+                    closeEditModal();
+                    updateUI();
+                    alert('Operación actualizada correctamente.');
+                } else {
+                    // Fallback: guardar localmente si API falla
+                    operations[opIndex] = updatedOperation;
+                    operations.sort((a, b) => new Date(a.date + 'T' + (a.entryTime || '00:00:00')) - new Date(b.date + 'T' + (b.entryTime || '00:00:00')));
+                    calculateHwmAndDrawdownFloor();
+                    saveData();
+                    closeEditModal();
+                    updateUI();
+                    alert('Operación actualizada localmente.\n\n(La API no está disponible)');
+                }
+            } catch (error) {
+                console.error('Error actualizando operacion:', error);
+                // Guardar localmente como fallback
+                operations[opIndex] = updatedOperation;
+                operations.sort((a, b) => new Date(a.date + 'T' + (a.entryTime || '00:00:00')) - new Date(b.date + 'T' + (b.entryTime || '00:00:00')));
+                calculateHwmAndDrawdownFloor();
+                saveData();
+                closeEditModal();
+                updateUI();
+                alert('Operación guardada localmente (sin conexión a API).');
+            }
+        }
+
+        // --- Theme Toggle ---
+        function toggleTheme() {
+            const body = document.body;
+            const themeBtn = document.getElementById('theme-toggle');
+
+            if (body.classList.contains('light-mode')) {
+                body.classList.remove('light-mode');
+                themeBtn.textContent = '🌙';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                body.classList.add('light-mode');
+                themeBtn.textContent = '☀️';
+                localStorage.setItem('theme', 'light');
+            }
+        }
+
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const themeBtn = document.getElementById('theme-toggle');
+            if (savedTheme === 'light') {
+                document.body.classList.add('light-mode');
+                if (themeBtn) themeBtn.textContent = '☀️';
+            }
+        }
+
           function setMood(mood) {
     document.getElementById('journal-mood').value = mood;
 }
@@ -2271,7 +3190,7 @@ function showJournalEntries() {
     activeJournals.forEach(entry => {
         const div = document.createElement('div');
         div.className = 'entry';
-        
+
         div.innerHTML = `
             <div class="entry-header">
                 <input type="checkbox" onchange="toggleGoalAchieved(${entry.id}, this.checked)" title="Marcar como conseguida">
@@ -2287,7 +3206,7 @@ function showJournalEntries() {
  function saveJournalEntry() {
             const date = document.getElementById('journal-date').value;
             const title = document.getElementById('journal-title').value.trim();
-            
+
             if (!date || !title) {
                 alert('Por favor, completa la fecha y el título de la meta.');
                 return;
@@ -2306,7 +3225,7 @@ function showJournalEntries() {
 
             // Limpiamos los campos del formulario
             document.getElementById('journal-title').value = '';
-            
+
             // Actualizamos la interfaz de usuario para mostrar la nueva meta
             updateUI();
             alert('Meta guardada correctamente.');
@@ -2337,7 +3256,7 @@ function renderAchievedGoals() {
     achievedJournals.forEach(entry => {
         const div = document.createElement('div');
         div.className = 'entry completed'; // Clase para estilo
-        
+
         // --- ¡AQUÍ ESTÁ EL CAMBIO CLAVE! ---
         // Hemos reemplazado el <input type="checkbox"> por un icono de check visual.
         // Este icono no es interactivo, por lo que no puedes desmarcarlo.
@@ -2454,7 +3373,7 @@ function updateUI() {
         updateJournalStatistics();
         updateGoalProgress();
         renderCapitalGrowthChart();
-        
+
     }
 }
 
@@ -2474,18 +3393,18 @@ function updateUI() {
             });
             sel.value = sorted.includes(cur) ? cur : '';
         }
-  // --- Atencion---
-      function renderOperations(filteredOps = null) {
+  // --- 
+   function renderOperations(filteredOps = null) {
     const list = document.getElementById('operations-list');
     list.innerHTML = '';
     const ops = filteredOps || operations;
-    
+
     if (ops.length === 0) {
         list.innerHTML = '<tr><td colspan="9" style="text-align: center;">No hay operaciones para mostrar.</td></tr>';
         renderAchievedGoals(); 
         return;
     }
-    
+
     // Ordenar operaciones
     const sortedOps = ops.sort((a, b) => {
         const dateA = new Date(a.date + 'T' + (a.entryTime || '00:00:00'));
@@ -2501,19 +3420,19 @@ function updateUI() {
     opsToShow.forEach(op => {
         const tr = document.createElement('tr');
         tr.className = op.type === 'bullish' ? 'operation-bullish' : (op.type === 'bearish' ? 'operation-bearish' : '');
-        
+
         const mediaHtml = op.media ? 
             (op.media.startsWith('data:image') ? 
                 `<img src="${op.media}" class="media-preview">` :
                 `<video src="${op.media}" class="media-preview" controls></video>`) : 'N/A';
-        
+
         // Formatear el mood para que solo muestre el icono
         let moodDisplay = op.mood || 'N/A';
         if (moodDisplay.includes('😊')) moodDisplay = '😊';
         else if (moodDisplay.includes('😐')) moodDisplay = '😐';
         else if (moodDisplay.includes('😟')) moodDisplay = '😟';
         else if (moodDisplay.includes('😠')) moodDisplay = '😠';
-        
+
         tr.innerHTML = `
             <td>${formatDate(op.date)}</td>
             <td>${formatType(op.type)}</td>
@@ -2529,6 +3448,7 @@ function updateUI() {
             <td>
                 <button onclick="showOperationDetails(${op.id})" 
                 class="button-secondary button-small" style="margin-right: 5px;">Ver</button>
+                <button onclick="openEditModal(${op.id})" class="button-primary button-small" style="margin-right: 5px;">Editar</button>
                 <button onclick="deleteOperation(${op.id})" class="button-danger button-small">Eliminar</button>
             </td>
         `;
@@ -2545,16 +3465,16 @@ function changeOperationsDisplay() {
    function showOperationDetails(id) {
     const op = operations.find(op => op.id === id);
     if (!op) return;
-    
+
     const mediaHtml = op.media ? 
         (op.media.startsWith('data:image') ? 
             `<img src="${op.media}" style="max-width: 100%; border-radius: 5px; margin-top: 10px;">` :
             `<video src="${op.media}" style="max-width: 100%; border-radius: 5px; margin-top: 10px;" controls></video>`) 
         : '<p><em>Sin media</em></p>';
-    
+
     // Formatear valoración de noticias como estrellas
     const starsHtml = '★'.repeat(op.newsRating || 0) + '☆'.repeat(4 - (op.newsRating || 0));
-    
+
     document.getElementById('operation-details-content').innerHTML = `
         <div style="margin-bottom: 15px;">
             <p><strong>Fecha:</strong> ${formatDate(op.date)}</p>
@@ -2809,6 +3729,9 @@ function changeOperationsDisplay() {
 
 
         // --- Inicialización ---
+        // Verificar estado de autenticación al cargar la página
+        checkAuthState();
+
         loadAccounts();
         const storedActive = localStorage.getItem(ACTIVE_ACCOUNT_KEY);
         if (storedActive && accounts.find(a => a.id === storedActive)) {
@@ -2820,7 +3743,7 @@ function changeOperationsDisplay() {
         }
         document.getElementById('date').value = new Date().toISOString().split('T')[0];
         openTab('dashboard');
-        
+
 // Registro del Service Worker
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -2865,7 +3788,7 @@ function renderCapitalGrowthChart() {
     if (sortedOperations.length > 0) {
         const firstOpDate = new Date(sortedOperations[0].date);
         firstOpDate.setDate(firstOpDate.getDate() - 1); // Un día antes para el "bajón" inicial
-        
+
         labels.push(firstOpDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }));
         balanceData.push(settings.initialBalance);
         drawdownData.push(settings.initialBalance - settings.trailingDrawdownAmount); // Drawdown inicial
@@ -2943,6 +3866,7 @@ function renderCapitalGrowthChart() {
 
 class RetosSemanales {
     constructor() {
+        this.accountId = currentAccountId;
         this.currentWeek = this.getCurrentWeekKey();
         this.currentMonth = new Date().getMonth();
         this.currentYear = new Date().getFullYear();
@@ -2973,13 +3897,23 @@ class RetosSemanales {
         document.getElementById('toggleTotalViewBtn').addEventListener('click', () => this.toggleVistaTotal());
     }
 
+    getStorageKey() {
+        return `retosSemanalesData_${this.accountId}`;
+    }
+
     loadData() {
-        const saved = localStorage.getItem('retosSemanalesData');
+        const saved = localStorage.getItem(this.getStorageKey());
         return saved ? JSON.parse(saved) : {};
     }
 
     saveData() {
-        localStorage.setItem('retosSemanalesData', JSON.stringify(this.data));
+        localStorage.setItem(this.getStorageKey(), JSON.stringify(this.data));
+    }
+
+    reloadForAccount(newAccountId) {
+        this.accountId = newAccountId;
+        this.data = this.loadData();
+        this.renderAll();
     }
 
     getCurrentWeekData() {
@@ -3049,7 +3983,7 @@ toggleVistaTotal() {
         });
         this.actualizarBotonGuardar();
     }
-    
+
     toggleDia(diaKey, cumplido) {
         const weekData = this.getCurrentWeekData();
         const dia = weekData.dias[diaKey];
@@ -3085,12 +4019,18 @@ toggleVistaTotal() {
         const canvas = document.getElementById('chartCanvas');
         if (!canvas) return;
         if (this.chartInstance) this.chartInstance.destroy();
+        const isLightMode = document.body.classList.contains('light-mode');
+        const textColor = isLightMode ? '#1a1a1a' : '#b3b3b3';
+        const titleColor = isLightMode ? '#1a1a1a' : '#ffffff';
+        const gridColor = isLightMode ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)';
+        const bgColor = isLightMode ? '#ffffff' : '#1f1f1f';
+        
         const retoData = dias.map(d => d.cumplido === null ? null : (d.cumplido ? 1 : 0));
         const operativaData = dias.map(d => d.resultado === null ? null : (d.resultado === 'positivo' ? 1 : -1));
         this.chartInstance = new Chart(canvas.getContext('2d'), {
             type: 'line',
-            data: { labels: this.dias, datasets: [{ label: 'Cumplimiento Reto', data: retoData, borderColor: '#00f2ea', tension: 0.4 }, { label: 'Resultado Operativa', data: operativaData, borderColor: '#ef44bc', tension: 0.4 }] },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { color: '#b3b3b3', callback: v => { if (v === 1) return 'Positivo/Cumplido'; if (v === 0) return 'Neutral/No Cumplido'; if (v === -1) return 'Negativo'; return null; } } }, x: { ticks: { color: '#b3b3b3' } } }, plugins: { legend: { labels: { color: '#ffffff' } }, title: { display: true, text: 'Progreso Semanal: Reto vs Operativa', color: '#ffffff' } } }
+            data: { labels: this.dias, datasets: [{ label: 'Cumplimiento Reto', data: retoData, borderColor: isLightMode ? '#00838f' : '#00f2ea', tension: 0.4, backgroundColor: isLightMode ? 'rgba(0, 131, 143, 0.1)' : 'rgba(0, 242, 234, 0.1)' }, { label: 'Resultado Operativa', data: operativaData, borderColor: isLightMode ? '#ad1457' : '#ef44bc', tension: 0.4, backgroundColor: isLightMode ? 'rgba(173, 20, 87, 0.1)' : 'rgba(239, 68, 188, 0.1)' }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: titleColor } }, title: { display: true, text: 'Progreso Semanal: Reto vs Operativa', color: titleColor } }, scales: { y: { ticks: { color: textColor, callback: v => { if (v === 1) return 'Positivo/Cumplido'; if (v === 0) return 'Neutral/No Cumplido'; if (v === -1) return 'Negativo'; return null; } }, grid: { color: gridColor } }, x: { ticks: { color: textColor }, grid: { color: gridColor } } } }
         });
     }
     renderMonthlyStats() {
@@ -3135,18 +4075,23 @@ toggleVistaTotal() {
     document.getElementById('diasCumplidosMes').textContent = totalDiasCumplidos;
     document.getElementById('positivosMes').textContent = totalPositivos;
     document.getElementById('cumplimientoMes').textContent = `${totalDiasMarcados > 0 ? Math.round((totalDiasCumplidos / totalDiasMarcados) * 100) : 0}%`;
-    
+
     this.renderMonthlyChart(semanasDelPeriodo);
 }
 
 
- 
+
 
     renderMonthlyChart(semanasDelMes) {
         const canvas = document.getElementById('monthlyChart');
         if (!canvas) return;
         if (this.monthlyChartInstance) this.monthlyChartInstance.destroy();
         const ctx = canvas.getContext('2d');
+        const isLightMode = document.body.classList.contains('light-mode');
+        const textColor = isLightMode ? '#1a1a1a' : '#b3b3b3';
+        const titleColor = isLightMode ? '#1a1a1a' : '#ffffff';
+        const gridColor = isLightMode ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)';
+        
         if (semanasDelMes.length === 0) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#6c757d'; ctx.textAlign = 'center'; ctx.fillText('No hay datos para este mes', canvas.width / 2, canvas.height / 2);
@@ -3157,8 +4102,8 @@ toggleVistaTotal() {
         const positivosData = semanasDelMes.map(k => Object.values(this.data[k].dias).filter(d => d.resultado === 'positivo').length);
         this.monthlyChartInstance = new Chart(ctx, {
             type: 'bar',
-            data: { labels, datasets: [{ label: 'Días Cumplidos', data: cumplidosData, backgroundColor: '#00f2ea' }, { label: 'Resultados Positivos', data: positivosData, backgroundColor: '#ef44bc' }] },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { color: '#b3b3b3', stepSize: 1 } } }, plugins: { legend: { labels: { color: '#ffffff' } }, title: { display: true, text: 'Resumen Mensual por Semana', color: '#ffffff' } } }
+            data: { labels, datasets: [{ label: 'Días Cumplidos', data: cumplidosData, backgroundColor: isLightMode ? '#00838f' : '#00f2ea' }, { label: 'Resultados Positivos', data: positivosData, backgroundColor: isLightMode ? '#ad1457' : '#ef44bc' }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: titleColor } }, title: { display: true, text: 'Resumen Mensual por Semana', color: titleColor } }, scales: { y: { beginAtZero: true, ticks: { color: textColor, stepSize: 1 }, grid: { color: gridColor } }, x: { ticks: { color: textColor }, grid: { color: gridColor } } } }
         });
     }
 
@@ -3200,6 +4145,7 @@ toggleVistaTotal() {
     updateResultado(diaKey, resultado) {
         this.getCurrentWeekData().dias[diaKey].resultado = resultado || null;
         this.saveData();
+        this.renderDias();
         this.renderEstadisticas();
     }
 
@@ -3323,12 +4269,22 @@ let app;
 const originalOpenTab = window.openTab;
 window.openTab = function(tabName) {
     originalOpenTab(tabName); 
-    
-    if (tabName === 'Retos' && !window.app) {
-        window.app = new RetosSemanales();
+
+    if (tabName === 'Retos') {
+        if (!currentAccountId) {
+            console.warn('No hay cuenta activa para cargar Retos Semanales');
+            return;
+        }
+        if (!window.app) {
+            window.app = new RetosSemanales();
+        } else if (window.app.accountId !== currentAccountId) {
+            window.app.reloadForAccount(currentAccountId);
+        }
     }
 }
 
+// Cargar tema al inicio
+loadTheme();
 
     </script>
 </body>
