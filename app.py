@@ -1,12 +1,12 @@
-from flask import Flask, render_template, send_from_directory, Response
+from flask import Flask, send_from_directory, Response
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='.', static_url_path='')
 
 @app.route('/')
 @app.route('/index.html')
 def index():
-    return render_template('index.html')
+    return send_from_directory('.', 'index.html')
 
 @app.route('/manifest.json')
 def manifest():
