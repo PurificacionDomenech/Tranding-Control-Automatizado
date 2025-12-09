@@ -264,7 +264,7 @@ def importar_csv():
 
 @app.route('/importar-cuenta', methods=['POST'])
 def importar_cuenta():
-    """Endpoint para importar operaciones evitando duplicados"""
+    """Endpoint para importar operaciones evitando duplicados basado en clave única"""
     data = request.get_json()
     
     if not data:
@@ -287,33 +287,46 @@ def importar_cuenta():
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # Obtener todas las operaciones existentes para esta cuenta
+        # Clave única: cuenta_id + fecha_operacion + hora_entrada + instrumento
         cursor.execute("""
-            SELECT fecha_operacion, hora_entrada, instrumento 
+            SELECT fecha_operacion, hora_entrada, hora_salida, instrumento, resultado_pnl
             FROM operaciones 
             WHERE cuenta_id = %s
         """, (cuenta_id,))
         
+        # Crear un conjunto con las claves únicas de operaciones existentes
         existentes = set()
         for row in cursor.fetchall():
             fecha_op = row[0].isoformat() if row[0] else None
             hora_ent = str(row[1]) if row[1] else None
-            instrumento = row[2]
-            existentes.add((fecha_op, hora_ent, instrumento))
+            hora_sal = str(row[2]) if row[2] else None
+            instrumento = row[3]
+            pnl = float(row[4]) if row[4] else 0.0
+            
+            # Clave compuesta más robusta para evitar duplicados
+            clave = (fecha_op, hora_ent, hora_sal, instrumento, round(pnl, 2))
+            existentes.add(clave)
         
         operaciones_nuevas = []
         duplicados = 0
         
+        # Filtrar operaciones duplicadas
         for op in operaciones:
             fecha_op = op.get('fecha_operacion') or op.get('fecha')
             hora_ent = op.get('hora_entrada')
+            hora_sal = op.get('hora_salida')
             instrumento = op.get('instrumento') or op.get('activo')
+            pnl = float(op.get('resultado_pnl') or op.get('importe') or 0)
             
-            clave = (fecha_op, hora_ent, instrumento)
+            # Construir clave única para esta operación
+            clave = (fecha_op, hora_ent, hora_sal, instrumento, round(pnl, 2))
             
             if clave in existentes:
                 duplicados += 1
             else:
                 operaciones_nuevas.append(op)
+                # Agregar al conjunto para evitar duplicados dentro del mismo lote
                 existentes.add(clave)
         
         importadas = 0
@@ -323,13 +336,13 @@ def importar_cuenta():
                 valores.append((
                     cuenta_id,
                     op.get('instrumento') or op.get('activo'),
-                    op.get('estrategia'),
+                    op.get('estrategia') or 'Importado',
                     op.get('fecha_operacion') or op.get('fecha'),
                     op.get('hora_entrada'),
                     op.get('hora_salida'),
                     op.get('precio_entrada'),
                     op.get('precio_salida'),
-                    op.get('contratos'),
+                    op.get('contratos') or 1,
                     op.get('resultado_pnl') or op.get('importe') or 0,
                     op.get('tipo_operacion') or op.get('tipo'),
                     op.get('notas_psicologia'),
