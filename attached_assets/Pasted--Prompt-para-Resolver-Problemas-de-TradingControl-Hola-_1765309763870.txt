@@ -1,0 +1,176 @@
+# Prompt para Resolver Problemas de TradingControl
+
+Hola, necesito ayuda para resolver 4 problemas críticos en mi aplicación **TradingControl**. He entrado en un bucle de debugging y necesito un enfoque metódico.
+
+## CONTEXTO COMPLETO
+
+Tengo dos aplicaciones:
+
+1. **TradingControl** (la problemática) - Aplicación de trading con backend Python/Flask + Supabase
+2. **Monarca Band** (de referencia) - Presentación que funciona perfectamente, solo frontend
+
+**Te he adjuntado:**
+- ✅ `index.html` → TradingControl (CON PROBLEMAS - Backend + DB)
+- ✅ `MB.html` → Monarca Band (FUNCIONA BIEN - Solo frontend de referencia)
+
+---
+
+## LO QUE NECESITO QUE HAGAS
+
+### PASO 1: Analizar el Código de Referencia (Monarca Band)
+
+**Examina el archivo `MB.html` (Monarca Band)** y fíjate en estos patrones que **SÍ funcionan correctamente**:
+
+1. **Cómo se cierra el lightbox después de usarlo:**
+   ```javascript
+   function openLightbox(src, title) {
+     document.getElementById('lightbox').style.display = 'flex';
+   }
+   
+   function closeLightbox() {
+     document.getElementById('lightbox').style.display = 'none';
+   }
+   ```
+   ☝️ **FUNCIONA**: Se cierra limpiamente sin problemas
+
+2. **Cómo se actualizan los dots/indicadores sin duplicar:**
+   ```javascript
+   function updateDots() {
+     dots.forEach((d, i) => d.classList.toggle('active', i === currentSlide));
+   }
+   ```
+   ☝️ **FUNCIONA**: No duplica elementos, solo actualiza clases
+
+3. **Cómo se manejan eventos de teclado:**
+   ```javascript
+   document.addEventListener('keydown', e => {
+     if (e.key === 'ArrowLeft') moveSlide(-1);
+     if (e.key === 'ArrowRight') moveSlide(1);
+   });
+   ```
+   ☝️ **FUNCIONA**: Eventos limpios sin memory leaks
+
+---
+
+### PASO 2: Identificar Qué Está Mal en TradingControl
+
+Ahora examina el archivo `index.html` (TradingControl) y compáralo con los patrones funcionales de MB.html (Monarca Band).
+
+---
+
+## LOS 4 PROBLEMAS A RESOLVER
+
+### 🔴 PROBLEMA 1: Duplicados en Base de Datos (Crítico)
+
+**Ubicación:** `main.py` (backend) - Endpoint `/api/importar-csv`
+
+**Síntoma:**
+- Cada vez que importo el mismo CSV, se insertan registros duplicados en Supabase
+- La base de datos crece infinitamente con datos repetidos
+
+**Lo que necesito:**
+```python
+# ANTES de insertar en la DB, verificar si existe:
+# Clave única: cuenta_id + fecha_operacion + hora_entrada + instrumento
+# 
+# Si existe → IGNORAR
+# Si NO existe → INSERTAR
+```
+
+**Pregunta específica:**
+> ¿Puedes mostrarme cómo modificar el endpoint `/api/importar-csv` en `main.py` para que verifique duplicados usando la clave única (cuenta_id + fecha_operacion + hora_entrada + instrumento) antes de insertar?
+
+---
+
+### 🟡 PROBLEMA 2: Modal No Se Cierra Después de Importar
+
+**Ubicación:** `index.html` (TradingControl) - Función `confirmImport()`
+
+**Síntoma:**
+- Importo CSV correctamente
+- La importación es exitosa
+- Pero el modal se queda abierto y debo cerrarlo manualmente
+
+**Comparación con código funcional (MB.html):**
+- En MB.html (Monarca Band), `closeLightbox()` funciona perfectamente
+- En index.html (TradingControl), `closeImportModal()` NO se ejecuta después del éxito
+
+**Pregunta específica:**
+> Compara la función `closeLightbox()` de MB.html con `closeImportModal()` de index.html. ¿Por qué una funciona y la otra no? ¿Dónde debo llamar a `closeImportModal()` exactamente en la función `confirmImport()`?
+
+---
+
+### 🟡 PROBLEMA 3: Gráfico de Crecimiento No Se Renderiza
+
+**Ubicación:** `index.html` (TradingControl) - Función `renderCapitalGrowthChart()`
+
+**Síntoma:**
+- El gráfico funcionaba antes de conectar Supabase
+- Ahora no aparece nada
+- Probable causa: formato de datos incorrecto desde la API
+
+**Probable error:**
+```javascript
+// Los datos de Supabase vienen así:
+{ amount: "150.50", date: "2025-01-15" }  // ❌ amount es STRING
+
+// Pero Chart.js espera esto:
+{ amount: 150.50, date: Date object }     // ✅ amount es NUMBER
+```
+
+**Pregunta específica:**
+> Examina la función `renderCapitalGrowthChart()` en index.html (TradingControl). Los datos vienen de Supabase a través de `mapAPIOperationToFrontend()`. ¿Qué transformaciones (parseFloat, new Date, etc.) necesito aplicar antes de pasarlos a Chart.js?
+
+---
+
+### 🟢 PROBLEMA 4: Resetear Datos Solo Borra localStorage
+
+**Ubicación:** `index.html` (TradingControl) - Función `resetAllData()` + nuevo endpoint en `main.py`
+
+**Síntoma:**
+- Hago clic en "Resetear Datos"
+- Se borra en localStorage (JavaScript)
+- Pero los datos siguen en Supabase
+- Al recargar la página, todo vuelve a aparecer
+
+**Lo que necesito:**
+1. **Backend:** Crear endpoint `DELETE /api/operaciones` que borre de la DB
+2. **Frontend:** Modificar `resetAllData()` para que llame a ese endpoint
+
+**Pregunta específica:**
+> ¿Puedes mostrarme:
+> 1. Cómo crear el endpoint `DELETE /api/operaciones` en `main.py`
+> 2. Cómo modificar la función `resetAllData()` en index.html para que primero borre en Supabase y luego en localStorage?
+
+---
+
+## METODOLOGÍA DE TRABAJO
+
+**Por favor, trabaja EN ORDEN:**
+
+1. ✅ Primero analiza MB.html (Monarca Band) para entender los patrones correctos
+2. ✅ Luego compara con index.html (TradingControl) para identificar las diferencias
+3. ✅ Resuelve los problemas UNO POR UNO (no todos a la vez)
+4. ✅ Espera mi confirmación de que funciona antes de pasar al siguiente
+
+**Empecemos por el Problema 1** (duplicados en DB), que es el más crítico.
+
+---
+
+## INFORMACIÓN ADICIONAL
+
+- **Supabase URL:** `https://bjjjutlfinxdwmifskdw.supabase.co`
+- **Backend API:** Python/Flask corriendo en Replit
+- **Frontend:** HTML/JS puro (no frameworks)
+- **Chart.js:** Ya está importado y funciona (solo necesita datos correctos)
+
+---
+
+## ARCHIVOS QUE HE ADJUNTADO
+
+1. **`index.html`** → TradingControl (la aplicación con problemas)
+2. **`MB.html`** → Monarca Band (aplicación de referencia que funciona bien)
+
+---
+
+¿Estás listo para empezar? Analiza primero los patrones de MB.html y luego dime qué ves mal en index.html para el **Problema 1 (duplicados)**.
