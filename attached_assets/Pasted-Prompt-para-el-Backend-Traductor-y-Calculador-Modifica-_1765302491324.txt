@@ -1,0 +1,19 @@
+Prompt para el Backend (Traductor y Calculador):
+"Modifica mi archivo main.py. Quiero crear una función 'traductora' y un endpoint que la use. El objetivo es procesar datos de operaciones que vienen con los nombres de columna de NinjaTrader.
+1. Crea una función auxiliar llamada traducir_y_calcular_operacion(ejecucion_ninja):
+Esta función recibirá un diccionario que representa una fila de datos de NinjaTrader, con claves como 'Instrumento', 'Acción', 'Precio promedio', 'Cantidad', 'Tiempo'.
+Dentro de la función, debes mapear (traducir) estos nombres a los nombres de mi tabla operaciones en Supabase. Por ejemplo:
+'Instrumento' -> instrumento
+'Acción' -> tipo_operacion
+'Cantidad' -> contratos
+'Tiempo' -> fecha_operacion y hora_entrada/hora_salida (tendrás que separar la fecha de la hora).
+Lógica de Cálculo de P/L: La función debe ser capaz de manejar un 'trade' (una entrada y una salida). Si recibe una ejecución de entrada y otra de salida, debe calcular el resultado_pnl. La fórmula es (precio_salida - precio_entrada) * cantidad * valor_del_punto. Asume un valor_del_punto de 2 (para el NQ).
+La función debe devolver un nuevo diccionario con los nombres de columna correctos de mi base de datos y el resultado_pnl calculado.
+2. Modifica el endpoint /importar-cuenta para que use esta función:
+El endpoint recibirá el nombre_cuenta y una lista de operaciones (que son las ejecuciones en bruto de NinjaTrader).
+Debe encontrar o crear el cuenta_id.
+Luego, debe crear una nueva lista vacía para las operaciones procesadas.
+Debe recorrer la lista de operaciones en bruto, y para cada una, llamar a la función traducir_y_calcular_operacion().
+Añadirá el resultado de la función a la nueva lista de operaciones procesadas.
+Finalmente, insertará la lista de operaciones procesadas y traducidas en la tabla operaciones de Supabase.
+El objetivo es que la lógica de 'traducción' y 'cálculo' esté encapsulada en una función reutilizable, y que el endpoint se encargue de orquestar el proceso.
