@@ -3850,8 +3850,25 @@ function changeOperationsDisplay() {
                 return;
             }
             
+            document.getElementById('btn-import-confirm').disabled = true;
+            
             let imported = 0;
+            let duplicates = 0;
+            
             importedOperations.forEach(op => {
+                const isDuplicate = operations.some(existingOp => 
+                    existingOp.date === op.fecha &&
+                    existingOp.entryTime === op.hora_entrada &&
+                    existingOp.exitTime === op.hora_salida &&
+                    Math.abs(existingOp.amount - op.importe) < 0.01 &&
+                    existingOp.activo === op.activo
+                );
+                
+                if (isDuplicate) {
+                    duplicates++;
+                    return;
+                }
+                
                 const newOperation = {
                     id: Date.now() + Math.random(),
                     date: op.fecha,
@@ -3861,34 +3878,39 @@ function changeOperationsDisplay() {
                     contracts: op.contratos,
                     entryTime: op.hora_entrada || '',
                     exitTime: op.hora_salida || '',
+                    entryPrice: op.precio_entrada || 0,
+                    exitPrice: op.precio_salida || 0,
                     amount: op.importe,
                     entryType: 'Importado',
                     exitType: 'Importado',
                     newsRating: 0,
                     mood: '',
                     photo: null,
-                    notes: `Importado desde NinjaTrader. Precio entrada: ${op.precio_entrada}, Precio salida: ${op.precio_salida}`
+                    notes: ''
                 };
                 
                 operations.push(newOperation);
                 imported++;
             });
             
-            saveOperations();
+            importedOperations = [];
+            
+            saveData();
             updateDisplay();
-            renderHistoryTable();
+            renderCapitalGrowthChart();
             
             const statusDiv = document.getElementById('import-status');
             statusDiv.style.background = '#1a472a';
             statusDiv.style.color = '#4CAF50';
-            statusDiv.textContent = `✓ Se importaron ${imported} operaciones correctamente`;
             
-            document.getElementById('btn-import-confirm').disabled = true;
+            let message = `✓ Se importaron ${imported} operaciones`;
+            if (duplicates > 0) {
+                message += ` (${duplicates} duplicadas omitidas)`;
+            }
+            statusDiv.textContent = message;
             
-            setTimeout(() => {
-                closeImportModal();
-                alert(`Se importaron ${imported} operaciones correctamente`);
-            }, 1000);
+            closeImportModal();
+            alert(message);
         }
 
 // Registro del Service Worker
