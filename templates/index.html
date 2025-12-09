@@ -4472,85 +4472,103 @@ document.getElementById('import-file').addEventListener('change', async function
     }
 });
 
-function confirmImport() {
+async function confirmImport() {
     if (importedOperations.length === 0) {
         alert('No hay operaciones para importar');
         return;
     }
     
-    document.getElementById('btn-import-confirm').disabled = true;
-    
-    let imported = 0;
-    let duplicates = 0;
-    
-    // Crear una copia del array para evitar problemas de referencia
-    const opsToImport = [...importedOperations];
-    
-    opsToImport.forEach(op => {
-        // Verificar duplicados comparando fecha, hora entrada, hora salida y activo
-        const isDuplicate = operations.some(existingOp => 
-            existingOp.date === op.fecha &&
-            existingOp.entryTime === op.hora_entrada &&
-            existingOp.exitTime === op.hora_salida &&
-            Math.abs(existingOp.amount - op.importe) < 0.01 &&
-            existingOp.activo === op.activo
-        );
-        
-        if (isDuplicate) {
-            duplicates++;
-            return;
-        }
-        
-        const newOperation = {
-            id: Date.now() + Math.random(),
-            date: op.fecha,
-            type: op.tipo.includes('Compra') ? 'bullish' : (op.tipo.includes('Venta') ? 'bearish' : ''),
-            activo: op.activo,
-            estrategia: op.estrategia || 'Importado NinjaTrader',
-            contracts: op.contratos,
-            entryTime: op.hora_entrada || '',
-            exitTime: op.hora_salida || '',
-            entryPrice: op.precio_entrada || 0,
-            exitPrice: op.precio_salida || 0,
-            amount: op.importe,
-            entryType: 'Importado',
-            exitType: 'Importado',
-            newsRating: 0,
-            mood: '',
-            media: null,
-            notes: ''
-        };
-        
-        operations.push(newOperation);
-        imported++;
-    });
-    
-    // Limpiar el array de operaciones importadas
-    importedOperations = [];
-    
-    // Ordenar operaciones por fecha
-    operations.sort((a, b) => new Date(a.date + 'T' + (a.entryTime || '00:00:00')) - new Date(b.date + 'T' + (b.entryTime || '00:00:00')));
-    
-    // Recalcular HWM y drawdown
-    calculateHwmAndDrawdownFloor();
-    
-    // Guardar datos
-    saveData();
-    
-    // Actualizar interfaz
-    updateUI();
-    
-    // Mensaje de confirmación
-    let message = `✓ Se importaron ${imported} operaciones correctamente`;
-    if (duplicates > 0) {
-        message += `\n\n${duplicates} operaciones duplicadas fueron omitidas`;
+    if (!currentAccountId) {
+        alert('Por favor selecciona una cuenta antes de importar');
+        return;
     }
     
-    // Cerrar modal ANTES de mostrar el alert
-    closeImportModal();
+    document.getElementById('btn-import-confirm').disabled = true;
+    document.getElementById('btn-import-confirm').textContent = 'Importando...';
     
-    // Mostrar mensaje
-    alert(message);
+    try {
+        const operacionesParaDB = importedOperations.map(op => ({
+            fecha_operacion: op.fecha,
+            instrumento: op.activo,
+            estrategia: op.estrategia || 'Importado NinjaTrader',
+            tipo_operacion: op.tipo,
+            contratos: op.contratos,
+            hora_entrada: op.hora_entrada || null,
+            hora_salida: op.hora_salida || null,
+            precio_entrada: op.precio_entrada || null,
+            precio_salida: op.precio_salida || null,
+            resultado_pnl: op.importe
+        }));
+        
+        const response = await fetch('/importar-cuenta', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                cuenta_id: currentAccountId,
+                operaciones: operacionesParaDB
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            importedOperations.forEach(op => {
+                const newOperation = {
+                    id: Date.now() + Math.random(),
+                    date: op.fecha,
+                    type: op.tipo.includes('Compra') ? 'bullish' : (op.tipo.includes('Venta') ? 'bearish' : ''),
+                    activo: op.activo,
+                    estrategia: op.estrategia || 'Importado NinjaTrader',
+                    contracts: op.contratos,
+                    entryTime: op.hora_entrada || '',
+                    exitTime: op.hora_salida || '',
+                    entryPrice: op.precio_entrada || 0,
+                    exitPrice: op.precio_salida || 0,
+                    amount: op.importe,
+                    entryType: 'Importado',
+                    exitType: 'Importado',
+                    newsRating: 0,
+                    mood: '',
+                    media: null,
+                    notes: ''
+                };
+                
+                const existsLocally = operations.some(existingOp => 
+                    existingOp.date === op.fecha &&
+                    existingOp.entryTime === op.hora_entrada &&
+                    existingOp.exitTime === op.hora_salida &&
+                    Math.abs(existingOp.amount - op.importe) < 0.01 &&
+                    existingOp.activo === op.activo
+                );
+                
+                if (!existsLocally) {
+                    operations.push(newOperation);
+                }
+            });
+            
+            importedOperations = [];
+            
+            operations.sort((a, b) => new Date(a.date + 'T' + (a.entryTime || '00:00:00')) - new Date(b.date + 'T' + (b.entryTime || '00:00:00')));
+            
+            calculateHwmAndDrawdownFloor();
+            saveData();
+            updateUI();
+            
+            closeImportModal();
+            
+            alert(data.mensaje);
+        } else {
+            alert('Error al importar: ' + (data.error || 'Error desconocido'));
+        }
+    } catch (error) {
+        console.error('Error en importación:', error);
+        alert('Error de conexión al importar operaciones: ' + error.message);
+    } finally {
+        document.getElementById('btn-import-confirm').disabled = false;
+        document.getElementById('btn-import-confirm').textContent = 'Importar Operaciones';
+    }
 }
 
     </script>
