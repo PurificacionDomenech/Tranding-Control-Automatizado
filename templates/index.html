@@ -3794,6 +3794,66 @@ function renderCapitalGrowthChart() {
         window.capitalGrowthChartInstance.destroy();
     }
 
+    // Si no hay operaciones, mostrar gráfico vacío
+    if (operations.length === 0) {
+        window.capitalGrowthChartInstance = new Chart(canvas.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: ['Inicio'],
+                datasets: [
+                    {
+                        label: 'Balance',
+                        data: [settings.initialBalance],
+                        borderColor: '#00f2ea',
+                        backgroundColor: 'rgba(0, 242, 234, 0.1)',
+                        fill: true,
+                        tension: 0.1,
+                        pointRadius: 5
+                    },
+                    {
+                        label: 'Suelo Drawdown',
+                        data: [settings.initialBalance - settings.trailingDrawdownAmount],
+                        borderColor: '#ef44bc',
+                        borderWidth: 2,
+                        fill: false,
+                        pointRadius: 5
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                scales: {
+                    x: {
+                        ticks: { color: '#b3b3b3' },
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                    },
+                    y: {
+                        ticks: { 
+                            color: '#b3b3b3', 
+                            callback: (v) => v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }) 
+                        },
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                    }
+                },
+                plugins: {
+                    legend: { 
+                        display: true,
+                        position: 'top',
+                        align: 'start',
+                        labels: {
+                            color: '#ffffff',
+                            boxWidth: 20,
+                            padding: 20
+                        }
+                    }
+                }
+            }
+        });
+        return;
+    }
+
     // --- 1. Agrupar Operaciones por Día ---
     const dailyBalances = {};
     let runningBalance = settings.initialBalance;
@@ -3814,29 +3874,29 @@ function renderCapitalGrowthChart() {
 
     if (sortedOperations.length > 0) {
         const firstOpDate = new Date(sortedOperations[0].date);
-        firstOpDate.setDate(firstOpDate.getDate() - 1); // Un día antes para el "bajón" inicial
+        firstOpDate.setDate(firstOpDate.getDate() - 1);
 
         labels.push(firstOpDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }));
         balanceData.push(settings.initialBalance);
-        drawdownData.push(settings.initialBalance - settings.trailingDrawdownAmount); // Drawdown inicial
+        drawdownData.push(settings.initialBalance - settings.trailingDrawdownAmount);
     }
 
     let currentHWM = settings.initialBalance;
     for (const date in dailyBalances) {
         labels.push(new Date(date).toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }));
         balanceData.push(dailyBalances[date]);
-        currentHWM = Math.max(currentHWM, dailyBalances[date]); // Actualizamos HWM hasta este punto
-        // Calculamos el drawdown basado en el HWM actual, con lógica de buffer
+        currentHWM = Math.max(currentHWM, dailyBalances[date]);
+        
         let drawdownValue = currentHWM - settings.trailingDrawdownAmount;
         if (currentHWM >= settings.initialBalance + settings.trailingDrawdownAmount) {
-            drawdownValue = settings.initialBalance; // Fijamos si supera el buffer
+            drawdownValue = settings.initialBalance;
         } else {
-            drawdownValue = Math.max(drawdownValue, settings.initialBalance - settings.trailingDrawdownAmount); // Mínimo permitido
+            drawdownValue = Math.max(drawdownValue, settings.initialBalance - settings.trailingDrawdownAmount);
         }
         drawdownData.push(drawdownValue);
     }
 
-    // --- 3. Creación del Gráfico Estilo Bulenox ---
+    // --- 3. Creación del Gráfico ---
     window.capitalGrowthChartInstance = new Chart(canvas.getContext('2d'), {
         type: 'line',
         data: {
@@ -3849,7 +3909,7 @@ function renderCapitalGrowthChart() {
                     backgroundColor: 'rgba(0, 242, 234, 0.1)',
                     fill: true,
                     tension: 0.1,
-                    pointRadius: 5, // Aumentado de 2 a 5 para puntos más grandes
+                    pointRadius: 5
                 },
                 {
                     label: 'Suelo Drawdown',
@@ -3857,7 +3917,7 @@ function renderCapitalGrowthChart() {
                     borderColor: '#ef44bc',
                     borderWidth: 2,
                     fill: false,
-                    pointRadius: 5, // Cambiado de 0 a 5 para mostrar puntos grandes
+                    pointRadius: 5
                 }
             ]
         },
@@ -3871,7 +3931,10 @@ function renderCapitalGrowthChart() {
                     grid: { color: 'rgba(255, 255, 255, 0.1)' }
                 },
                 y: {
-                    ticks: { color: '#b3b3b3', callback: (v) => v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }) },
+                    ticks: { 
+                        color: '#b3b3b3', 
+                        callback: (v) => v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }) 
+                    },
                     grid: { color: 'rgba(255, 255, 255, 0.1)' }
                 }
             },
