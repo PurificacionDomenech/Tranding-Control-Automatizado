@@ -262,6 +262,68 @@ def importar_csv():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/operacion', methods=['POST'])
+def crear_operacion():
+    """Endpoint para crear una operación individual"""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'No se proporcionaron datos'}), 400
+    
+    cuenta_id = data.get('cuenta_id')
+    if not cuenta_id:
+        return jsonify({'error': 'cuenta_id es requerido'}), 400
+    
+    conn = None
+    cursor = None
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO operaciones (
+                cuenta_id, instrumento, estrategia, fecha_operacion,
+                hora_entrada, hora_salida, precio_entrada, precio_salida,
+                contratos, resultado_pnl, tipo_operacion, notas_psicologia, captura_url
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            cuenta_id,
+            data.get('instrumento'),
+            data.get('estrategia'),
+            data.get('fecha_operacion'),
+            data.get('hora_entrada'),
+            data.get('hora_salida'),
+            data.get('precio_entrada'),
+            data.get('precio_salida'),
+            data.get('contratos'),
+            data.get('resultado_pnl'),
+            data.get('tipo_operacion'),
+            data.get('notas_psicologia'),
+            data.get('captura_url')
+        ))
+        
+        operacion_id = cursor.fetchone()[0]
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'mensaje': 'Operación guardada correctamente',
+            'datos': [{'id': operacion_id}]
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
 @app.route('/importar-cuenta', methods=['POST'])
 def importar_cuenta():
     """Endpoint para importar operaciones evitando duplicados basado en clave única"""
@@ -367,6 +429,162 @@ def importar_cuenta():
             'total_recibidas': total_recibidas,
             'total_importadas': importadas,
             'total_duplicados': duplicados
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/operaciones', methods=['GET'])
+def obtener_operaciones():
+    """Endpoint para obtener operaciones de una cuenta"""
+    cuenta_id = request.args.get('cuenta_id')
+    
+    conn = None
+    cursor = None
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        if cuenta_id:
+            cursor.execute("""
+                SELECT id, cuenta_id, instrumento, estrategia, fecha_operacion,
+                       hora_entrada, hora_salida, precio_entrada, precio_salida,
+                       contratos, resultado_pnl, tipo_operacion, notas_psicologia, captura_url
+                FROM operaciones
+                WHERE cuenta_id = %s
+                ORDER BY fecha_operacion, hora_entrada
+            """, (cuenta_id,))
+        else:
+            cursor.execute("""
+                SELECT id, cuenta_id, instrumento, estrategia, fecha_operacion,
+                       hora_entrada, hora_salida, precio_entrada, precio_salida,
+                       contratos, resultado_pnl, tipo_operacion, notas_psicologia, captura_url
+                FROM operaciones
+                ORDER BY fecha_operacion, hora_entrada
+            """)
+        
+        operaciones = []
+        for row in cursor.fetchall():
+            operaciones.append({
+                'id': row[0],
+                'cuenta_id': row[1],
+                'instrumento': row[2],
+                'estrategia': row[3],
+                'fecha_operacion': row[4].isoformat() if row[4] else None,
+                'hora_entrada': str(row[5]) if row[5] else None,
+                'hora_salida': str(row[6]) if row[6] else None,
+                'precio_entrada': float(row[7]) if row[7] else None,
+                'precio_salida': float(row[8]) if row[8] else None,
+                'contratos': row[9],
+                'resultado_pnl': float(row[10]) if row[10] else 0,
+                'tipo_operacion': row[11],
+                'notas_psicologia': row[12],
+                'captura_url': row[13]
+            })
+        
+        return jsonify({
+            'success': True,
+            'operaciones': operaciones
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/operacion/<int:operacion_id>', methods=['DELETE'])
+def eliminar_operacion(operacion_id):
+    """Endpoint para eliminar una operación específica"""
+    conn = None
+    cursor = None
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM operaciones WHERE id = %s", (operacion_id,))
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'mensaje': 'Operación eliminada correctamente'
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/operacion/<int:operacion_id>', methods=['PUT'])
+def actualizar_operacion(operacion_id):
+    """Endpoint para actualizar una operación existente"""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'No se proporcionaron datos'}), 400
+    
+    conn = None
+    cursor = None
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE operaciones SET
+                instrumento = %s,
+                estrategia = %s,
+                fecha_operacion = %s,
+                hora_entrada = %s,
+                hora_salida = %s,
+                precio_entrada = %s,
+                precio_salida = %s,
+                contratos = %s,
+                resultado_pnl = %s,
+                tipo_operacion = %s,
+                notas_psicologia = %s,
+                captura_url = %s
+            WHERE id = %s
+        """, (
+            data.get('instrumento'),
+            data.get('estrategia'),
+            data.get('fecha_operacion'),
+            data.get('hora_entrada'),
+            data.get('hora_salida'),
+            data.get('precio_entrada'),
+            data.get('precio_salida'),
+            data.get('contratos'),
+            data.get('resultado_pnl'),
+            data.get('tipo_operacion'),
+            data.get('notas_psicologia'),
+            data.get('captura_url'),
+            operacion_id
+        ))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'mensaje': 'Operación actualizada correctamente'
         })
         
     except Exception as e:
