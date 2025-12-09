@@ -4389,8 +4389,24 @@ function openImportModal() {
 }
 
 function closeImportModal() {
+    // Ocultar modal
     document.getElementById('import-modal').style.display = 'none';
+    
+    // Limpiar array de operaciones
     importedOperations = [];
+    
+    // Resetear el input de archivo
+    const fileInput = document.getElementById('import-file');
+    if (fileInput) {
+        fileInput.value = '';
+    }
+    
+    // Ocultar preview y status
+    document.getElementById('import-preview').style.display = 'none';
+    document.getElementById('import-status').style.display = 'none';
+    
+    // Deshabilitar botón de importar
+    document.getElementById('btn-import-confirm').disabled = true;
 }
 
 document.getElementById('import-file').addEventListener('change', async function(e) {
@@ -4467,7 +4483,11 @@ function confirmImport() {
     let imported = 0;
     let duplicates = 0;
     
-    importedOperations.forEach(op => {
+    // Crear una copia del array para evitar problemas de referencia
+    const opsToImport = [...importedOperations];
+    
+    opsToImport.forEach(op => {
+        // Verificar duplicados comparando fecha, hora entrada, hora salida y activo
         const isDuplicate = operations.some(existingOp => 
             existingOp.date === op.fecha &&
             existingOp.entryTime === op.hora_entrada &&
@@ -4486,7 +4506,7 @@ function confirmImport() {
             date: op.fecha,
             type: op.tipo.includes('Compra') ? 'bullish' : (op.tipo.includes('Venta') ? 'bearish' : ''),
             activo: op.activo,
-            strategy: op.estrategia || 'Importado NinjaTrader',
+            estrategia: op.estrategia || 'Importado NinjaTrader',
             contracts: op.contratos,
             entryTime: op.hora_entrada || '',
             exitTime: op.hora_salida || '',
@@ -4497,7 +4517,7 @@ function confirmImport() {
             exitType: 'Importado',
             newsRating: 0,
             mood: '',
-            photo: null,
+            media: null,
             notes: ''
         };
         
@@ -4505,18 +4525,31 @@ function confirmImport() {
         imported++;
     });
     
+    // Limpiar el array de operaciones importadas
     importedOperations = [];
     
-    saveData();
-    updateDisplay();
-    renderCapitalGrowthChart();
+    // Ordenar operaciones por fecha
+    operations.sort((a, b) => new Date(a.date + 'T' + (a.entryTime || '00:00:00')) - new Date(b.date + 'T' + (b.entryTime || '00:00:00')));
     
-    let message = `Se importaron ${imported} operaciones`;
+    // Recalcular HWM y drawdown
+    calculateHwmAndDrawdownFloor();
+    
+    // Guardar datos
+    saveData();
+    
+    // Actualizar interfaz
+    updateUI();
+    
+    // Mensaje de confirmación
+    let message = `✓ Se importaron ${imported} operaciones correctamente`;
     if (duplicates > 0) {
-        message += ` (${duplicates} duplicadas omitidas)`;
+        message += `\n\n${duplicates} operaciones duplicadas fueron omitidas`;
     }
     
+    // Cerrar modal ANTES de mostrar el alert
     closeImportModal();
+    
+    // Mostrar mensaje
     alert(message);
 }
 
