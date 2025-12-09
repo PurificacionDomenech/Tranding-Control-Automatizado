@@ -6,13 +6,16 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-def traducir_y_calcular_operacion(ejecucion_ninja):
-    """
-    Traduce los nombres de columna de NinjaTrader al formato de la base de datos
-    y calcula el P/L cuando es posible.
-    """
-    resultado = {}
-    
+def detectar_formato_csv(headers):
+    """Detecta si es formato Grid (ejecuciones) o formato Orders (órdenes)"""
+    if 'E/X' in headers:
+        return 'grid'
+    elif 'Precio promedio' in headers:
+        return 'orders'
+    return 'unknown'
+
+def traducir_operacion_grid(ejecucion_ninja):
+    """Traduce formato Grid de NinjaTrader"""
     instrumento = ejecucion_ninja.get('Instrumento', '')
     accion = ejecucion_ninja.get('Acción', '')
     cantidad = ejecucion_ninja.get('Cantidad', '1')
@@ -20,7 +23,6 @@ def traducir_y_calcular_operacion(ejecucion_ninja):
     tiempo = ejecucion_ninja.get('Tiempo', '')
     entrada_salida = ejecucion_ninja.get('E/X', '')
     nombre = ejecucion_ninja.get('Nombre', '')
-    comision = ejecucion_ninja.get('Comisión', '0')
     cuenta = ejecucion_ninja.get('Nombre de cuenta de pantalla', '')
     
     precio_str = precio.replace(',', '.').replace('$', '').strip()
@@ -34,17 +36,7 @@ def traducir_y_calcular_operacion(ejecucion_ninja):
     except:
         cantidad_int = 1
     
-    if tiempo:
-        try:
-            dt = datetime.strptime(tiempo, '%d/%m/%Y %H:%M:%S')
-            fecha = dt.strftime('%Y-%m-%d')
-            hora = dt.strftime('%H:%M:%S')
-        except:
-            fecha = ''
-            hora = ''
-    else:
-        fecha = ''
-        hora = ''
+    fecha, hora = parsear_tiempo(tiempo)
     
     if 'Comprar' in accion:
         tipo = 'Alcista (Compra)'
@@ -56,7 +48,7 @@ def traducir_y_calcular_operacion(ejecucion_ninja):
     es_entrada = 'Entrada' in entrada_salida
     es_salida = 'Salida' in entrada_salida
     
-    resultado = {
+    return {
         'instrumento': instrumento,
         'tipo_operacion': tipo,
         'contratos': cantidad_int,
@@ -67,21 +59,88 @@ def traducir_y_calcular_operacion(ejecucion_ninja):
         'es_salida': es_salida,
         'nombre_estrategia': nombre,
         'cuenta': cuenta,
-        'accion_original': accion,
-        'entrada_salida_original': entrada_salida
+        'accion_original': accion
     }
+
+def traducir_operacion_orders(orden_ninja):
+    """Traduce formato Orders de NinjaTrader"""
+    instrumento = orden_ninja.get('Instrumento', '')
+    accion = orden_ninja.get('Acción', '')
+    cantidad = orden_ninja.get('Cantidad', '1')
+    precio = orden_ninja.get('Precio promedio', '0')
+    tiempo = orden_ninja.get('Tiempo', '')
+    nombre = orden_ninja.get('Nombre', '')
+    cuenta = orden_ninja.get('Nombre de cuenta de pantalla', '')
+    estado = orden_ninja.get('Estado', '')
+    completo = orden_ninja.get('Completo', '0')
     
-    return resultado
+    if estado != 'Completo':
+        return None
+    
+    precio_str = str(precio).replace(',', '.').replace('$', '').strip()
+    try:
+        precio_float = float(precio_str)
+    except:
+        precio_float = 0.0
+    
+    if precio_float == 0:
+        return None
+    
+    try:
+        cantidad_int = int(completo) if completo else int(cantidad)
+    except:
+        cantidad_int = 1
+    
+    fecha, hora = parsear_tiempo(tiempo)
+    
+    if 'Comprar' in accion:
+        tipo = 'Alcista (Compra)'
+    elif 'Vender' in accion:
+        tipo = 'Bajista (Venta)'
+    else:
+        tipo = accion
+    
+    nombre_lower = nombre.lower() if nombre else ''
+    es_entrada = 'entry' in nombre_lower
+    es_salida = any(x in nombre_lower for x in ['exit', 'stop', 'target', 'cerrar'])
+    
+    return {
+        'instrumento': instrumento,
+        'tipo_operacion': tipo,
+        'contratos': cantidad_int,
+        'precio': precio_float,
+        'fecha': fecha,
+        'hora': hora,
+        'es_entrada': es_entrada,
+        'es_salida': es_salida,
+        'nombre_estrategia': nombre,
+        'cuenta': cuenta,
+        'accion_original': accion
+    }
+
+def parsear_tiempo(tiempo):
+    """Parsea el tiempo en diferentes formatos"""
+    if not tiempo:
+        return '', ''
+    
+    formatos = ['%d/%m/%Y %H:%M:%S', '%d/%m/%Y %H:%M', '%Y-%m-%d %H:%M:%S']
+    for fmt in formatos:
+        try:
+            dt = datetime.strptime(tiempo.strip(), fmt)
+            return dt.strftime('%Y-%m-%d'), dt.strftime('%H:%M:%S')
+        except:
+            continue
+    return '', ''
 
 def emparejar_operaciones(operaciones_traducidas):
-    """
-    Empareja entradas con salidas para calcular P/L.
-    Agrupa por cuenta e instrumento.
-    """
+    """Empareja entradas con salidas para calcular P/L"""
     operaciones_completas = []
     entradas_pendientes = {}
     
     for op in operaciones_traducidas:
+        if op is None:
+            continue
+            
         key = (op['cuenta'], op['instrumento'])
         
         if op['es_entrada']:
@@ -94,11 +153,11 @@ def emparejar_operaciones(operaciones_traducidas):
                 
                 if 'MNQ' in op['instrumento']:
                     valor_punto = 2
-                elif 'NQ' in op['instrumento']:
+                elif 'NQ' in op['instrumento'] and 'MNQ' not in op['instrumento']:
                     valor_punto = 20
                 elif 'MES' in op['instrumento']:
                     valor_punto = 5
-                elif 'ES' in op['instrumento']:
+                elif 'ES' in op['instrumento'] and 'MES' not in op['instrumento']:
                     valor_punto = 50
                 else:
                     valor_punto = 2
@@ -144,15 +203,26 @@ def importar_csv():
         content = file.read().decode('utf-8')
         
         reader = csv.DictReader(io.StringIO(content), delimiter=';')
-        
         operaciones_raw = list(reader)
+        
+        if not operaciones_raw:
+            return jsonify({'error': 'El archivo está vacío'}), 400
+        
+        headers = list(operaciones_raw[0].keys())
+        formato = detectar_formato_csv(headers)
         
         operaciones_traducidas = []
         for op in operaciones_raw:
-            traducida = traducir_y_calcular_operacion(op)
-            operaciones_traducidas.append(traducida)
+            if formato == 'grid':
+                traducida = traducir_operacion_grid(op)
+            elif formato == 'orders':
+                traducida = traducir_operacion_orders(op)
+            else:
+                return jsonify({'error': f'Formato CSV no reconocido. Headers: {headers[:5]}'}), 400
+            
+            if traducida:
+                operaciones_traducidas.append(traducida)
         
-        # Sort by date and time (chronological order - entries before exits)
         def parse_datetime(op):
             try:
                 return datetime.strptime(f"{op['fecha']} {op['hora']}", '%Y-%m-%d %H:%M:%S')
@@ -167,7 +237,8 @@ def importar_csv():
             'success': True,
             'operaciones': operaciones_completas,
             'total_importadas': len(operaciones_completas),
-            'mensaje': f'Se procesaron {len(operaciones_completas)} operaciones completas'
+            'formato_detectado': formato,
+            'mensaje': f'Se procesaron {len(operaciones_completas)} operaciones completas (formato: {formato})'
         })
         
     except Exception as e:
