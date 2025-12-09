@@ -1578,6 +1578,12 @@
                 </div>
             </div>
             <div class="dashboard-card">
+               <h3>Crecimiento de Capital y Seguimiento de Drawdown</h3>
+               <div class="chart-container" style="height: 300px;">  
+              <canvas id="capitalGrowthChart"></canvas>
+                </div>
+            </div>
+            <div class="dashboard-card">
                 <h3>Seguimiento de Drawdown</h3>
                 <div class="card-stats">
                     <div class="stat-box"><h4>Pico de Saldo (HWM)</h4><p id="high-water-mark">0.00 €</p></div>
@@ -1609,13 +1615,6 @@
                     <h3 style="margin-top: 20px;">Metas</h3>
                     <div id="journal-entries"></div>
             </div>
-                  <div class="dashboard-card">
-               <h3>Crecimiento de Capital y Seguimiento de Drawdown</h3>
-               <div class="chart-container">  
-              <canvas id="capitalGrowthChart"></canvas>
-                </div>
-            </div>
-
 
             <div class="dashboard-card">
                 <h3>Operaciones Recientes</h3>
@@ -3646,6 +3645,9 @@ function changeOperationsDisplay() {
             updateWeeklyPerformance();
             renderWeeklySuccessRate();
             updateRecentOperations();
+            
+            // Renderizar el gráfico de capital después de actualizar los datos
+            setTimeout(() => renderCapitalGrowthChart(), 100);
         }
 
         function updateConsistencyRule() {
