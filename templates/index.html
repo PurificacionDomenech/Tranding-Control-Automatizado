@@ -2808,19 +2808,42 @@ function removeChecklistItem(indexToRemove) {
             alert('Configuración guardada.');
         }
 
-        function resetAllData() {
+        async function resetAllData() {
+            if (!currentAccountId) {
+                alert('No hay cuenta activa seleccionada.');
+                return;
+            }
             if (confirm('¿Reiniciar TODAS las operaciones, diarios y objetivos? (Configuración se mantiene)')) {
-                operations = [];
-                journals = [];
-                goals = { weekly: 0, monthly: 0 };
-                highWaterMark = settings.initialBalance;
-                drawdownFloor = settings.initialBalance - settings.trailingDrawdownAmount;
-                localStorage.removeItem(getOperationsKey(currentAccountId));
-                localStorage.removeItem(getJournalsKey(currentAccountId));
-                localStorage.removeItem(getGoalsKey(currentAccountId));
-                saveData();
-                updateUI();
-                alert('Datos reiniciados.');
+                try {
+                    // Eliminar operaciones de Supabase
+                    const response = await fetch(`${API_BASE_URL}/operaciones/${currentAccountId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Error al eliminar operaciones');
+                    }
+                    
+                    // Limpiar datos locales
+                    operations = [];
+                    journals = [];
+                    goals = { weekly: 0, monthly: 0 };
+                    highWaterMark = settings.initialBalance;
+                    drawdownFloor = settings.initialBalance - settings.trailingDrawdownAmount;
+                    localStorage.removeItem(getOperationsKey(currentAccountId));
+                    localStorage.removeItem(getJournalsKey(currentAccountId));
+                    localStorage.removeItem(getGoalsKey(currentAccountId));
+                    saveData();
+                    updateUI();
+                    alert('Datos reiniciados correctamente.');
+                } catch (error) {
+                    console.error('Error al reiniciar datos:', error);
+                    alert('Error al reiniciar datos: ' + error.message);
+                }
             }
         }
 
@@ -3856,13 +3879,14 @@ function renderCapitalGrowthChart() {
 
     // --- 1. Agrupar Operaciones por Día ---
     const dailyBalances = {};
-    let runningBalance = settings.initialBalance;
-    let highWaterMark = settings.initialBalance;
+    let runningBalance = parseFloat(settings.initialBalance) || 0;
+    let highWaterMark = parseFloat(settings.initialBalance) || 0;
 
     const sortedOperations = [...operations].sort((a, b) => new Date(a.date) - new Date(b.date));
 
     sortedOperations.forEach(op => {
-        runningBalance += op.amount;
+        const amount = parseFloat(op.amount) || 0;
+        runningBalance += amount;
         dailyBalances[op.date] = runningBalance;
         highWaterMark = Math.max(highWaterMark, runningBalance);
     });

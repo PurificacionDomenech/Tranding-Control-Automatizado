@@ -380,6 +380,38 @@ def importar_cuenta():
             conn.close()
 
 
+@app.route('/api/operaciones/<cuenta_id>', methods=['DELETE'])
+def eliminar_operaciones_cuenta(cuenta_id):
+    """Endpoint para eliminar todas las operaciones de una cuenta"""
+    conn = None
+    cursor = None
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM operaciones WHERE cuenta_id = %s", (cuenta_id,))
+        deleted_count = cursor.rowcount
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'mensaje': f'Se eliminaron {deleted_count} operaciones de la cuenta.',
+            'total_eliminadas': deleted_count
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
 @app.route('/manifest.json')
 def manifest():
     return send_from_directory('static', 'manifest.json')
