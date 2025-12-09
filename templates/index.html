@@ -2114,8 +2114,8 @@
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // --- API Configuration ---
-        // IMPORTANTE: Cambia esta URL por la URL de tu backend API en Replit
-        const API_BASE_URL = 'https://trading-control-api.tu-usuario.repl.co';
+        // Usa la URL actual del Repl (mismo dominio, ya que el backend está en el mismo proyecto)
+        const API_BASE_URL = window.location.origin;
 
         // --- API Helper Functions ---
         async function fetchOperacionesFromAPI(cuentaId) {
