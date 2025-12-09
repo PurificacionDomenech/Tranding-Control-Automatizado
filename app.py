@@ -3,8 +3,17 @@ import os
 import csv
 import io
 from datetime import datetime
+import psycopg2
+from psycopg2.extras import execute_values
 
 app = Flask(__name__)
+
+def get_db_connection():
+    """Obtiene conexión a la base de datos Supabase"""
+    database_url = os.environ.get('DATABASE_URL')
+    if not database_url:
+        raise Exception('DATABASE_URL no está configurada')
+    return psycopg2.connect(database_url)
 
 def detectar_formato_csv(headers):
     """Detecta si es formato Grid (ejecuciones) o formato Orders (órdenes)"""
@@ -251,6 +260,112 @@ def importar_csv():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/importar-cuenta', methods=['POST'])
+def importar_cuenta():
+    """Endpoint para importar operaciones evitando duplicados"""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'No se proporcionaron datos'}), 400
+    
+    cuenta_id = data.get('cuenta_id')
+    operaciones = data.get('operaciones', [])
+    
+    if not cuenta_id:
+        return jsonify({'error': 'cuenta_id es requerido'}), 400
+    
+    if not operaciones:
+        return jsonify({'error': 'No hay operaciones para importar'}), 400
+    
+    total_recibidas = len(operaciones)
+    conn = None
+    cursor = None
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT fecha_operacion, hora_entrada, instrumento 
+            FROM operaciones 
+            WHERE cuenta_id = %s
+        """, (cuenta_id,))
+        
+        existentes = set()
+        for row in cursor.fetchall():
+            fecha_op = row[0].isoformat() if row[0] else None
+            hora_ent = str(row[1]) if row[1] else None
+            instrumento = row[2]
+            existentes.add((fecha_op, hora_ent, instrumento))
+        
+        operaciones_nuevas = []
+        duplicados = 0
+        
+        for op in operaciones:
+            fecha_op = op.get('fecha_operacion') or op.get('fecha')
+            hora_ent = op.get('hora_entrada')
+            instrumento = op.get('instrumento') or op.get('activo')
+            
+            clave = (fecha_op, hora_ent, instrumento)
+            
+            if clave in existentes:
+                duplicados += 1
+            else:
+                operaciones_nuevas.append(op)
+                existentes.add(clave)
+        
+        importadas = 0
+        if operaciones_nuevas:
+            valores = []
+            for op in operaciones_nuevas:
+                valores.append((
+                    cuenta_id,
+                    op.get('instrumento') or op.get('activo'),
+                    op.get('estrategia'),
+                    op.get('fecha_operacion') or op.get('fecha'),
+                    op.get('hora_entrada'),
+                    op.get('hora_salida'),
+                    op.get('precio_entrada'),
+                    op.get('precio_salida'),
+                    op.get('contratos'),
+                    op.get('resultado_pnl') or op.get('importe') or 0,
+                    op.get('tipo_operacion') or op.get('tipo'),
+                    op.get('notas_psicologia'),
+                    op.get('captura_url')
+                ))
+            
+            execute_values(cursor, """
+                INSERT INTO operaciones (
+                    cuenta_id, instrumento, estrategia, fecha_operacion, 
+                    hora_entrada, hora_salida, precio_entrada, precio_salida,
+                    contratos, resultado_pnl, tipo_operacion, notas_psicologia, captura_url
+                ) VALUES %s
+            """, valores)
+            
+            importadas = len(operaciones_nuevas)
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'mensaje': f'Importación completada. Se recibieron {total_recibidas} operaciones, se importaron {importadas} operaciones nuevas y se omitieron {duplicados} duplicados.',
+            'total_recibidas': total_recibidas,
+            'total_importadas': importadas,
+            'total_duplicados': duplicados
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
 
 @app.route('/manifest.json')
 def manifest():
