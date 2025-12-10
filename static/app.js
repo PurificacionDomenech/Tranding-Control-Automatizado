@@ -1132,7 +1132,10 @@ function saveJournalEntry() {
     };
     
     journals.push(entry);
-    saveData();
+    
+    // Guardar en localStorage
+    const journalsKey = getJournalsKey(currentAccountId);
+    localStorage.setItem(journalsKey, JSON.stringify(journals));
     
     document.getElementById('journal-date').value = '';
     document.getElementById('journal-title').value = '';
@@ -1221,7 +1224,10 @@ function saveGoals() {
     goals.weekly = parseFloat(document.getElementById('weekly-goal').value) || 0;
     goals.monthly = parseFloat(document.getElementById('monthly-goal').value) || 0;
     
-    saveData();
+    // Guardar en localStorage
+    const goalsKey = getGoalsKey(currentAccountId);
+    localStorage.setItem(goalsKey, JSON.stringify(goals));
+    
     updateGoalsProgress();
     alert('Objetivos guardados correctamente.');
 }
