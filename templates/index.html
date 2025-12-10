@@ -4582,9 +4582,8 @@ async function confirmImport() {
             saveData();
             updateUI();
             
-            closeImportModal();
-            
             alert(data.mensaje);
+            closeImportModal();
         } else {
             alert('Error al importar: ' + (data.error || 'Error desconocido'));
         }
