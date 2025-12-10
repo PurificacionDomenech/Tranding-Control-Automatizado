@@ -1593,7 +1593,7 @@
                 <p class="drawdown-info" id="drawdown-explanation">El suelo de drawdown es el saldo mínimo permitido.</p>
             </div>
             <div class="dashboard-card">
-                <h3 id="consistency-title">Regla de Consistencia</h3>
+                <h3>Regla de Consistencia</h3>
                 <p>El día más rentable no debe superar el <span id="consistency-limit-display">40</span>% de las ganancias totales.</p>
                 <div id="consistency-rule-container">
                     <div class="progress-container">
@@ -2085,19 +2085,19 @@
                 <span class="close-modal" onclick="closeImportModal()">&times;</span>
                 <h2>📥 Importar Operaciones de NinjaTrader</h2>
                 <p style="color: #aaa; margin-bottom: 20px;">Selecciona un archivo CSV exportado desde NinjaTrader para importar las operaciones automáticamente.</p>
-                
+
                 <div class="form-group">
                     <label for="import-file">Archivo CSV:</label>
                     <input type="file" id="import-file" accept=".csv" style="width: 100%; padding: 10px; background: #333; border: 1px solid #444; border-radius: 5px; color: #fff;">
                 </div>
-                
+
                 <div id="import-status" style="display: none; padding: 10px; border-radius: 5px; margin: 15px 0;"></div>
-                
+
                 <div id="import-preview" style="display: none; margin: 15px 0;">
                     <h3 style="color: #00f2ea;">Vista previa de operaciones:</h3>
                     <div id="import-preview-content" style="max-height: 300px; overflow-y: auto; background: #222; padding: 10px; border-radius: 5px;"></div>
                 </div>
-                
+
                 <div class="modal-buttons" style="margin-top: 20px;">
                     <button class="button-secondary" onclick="closeImportModal()">Cancelar</button>
                     <button id="btn-import-confirm" class="button-primary" onclick="confirmImport()" disabled style="background-color: #4CAF50;">Importar Operaciones</button>
@@ -2821,12 +2821,12 @@ function removeChecklistItem(indexToRemove) {
                             'Content-Type': 'application/json'
                         }
                     });
-                    
+
                     if (!response.ok) {
                         const errorData = await response.json();
                         throw new Error(errorData.error || 'Error al eliminar operaciones');
                     }
-                    
+
                     // Limpiar datos locales
                     operations = [];
                     journals = [];
@@ -3501,7 +3501,7 @@ function updateUI() {
                 <button onclick="deleteOperation(${op.id})" class="button-danger button-small">Eliminar</button>
             </td>
         `;
-        list.appendChild(tr);
+       list.appendChild(tr);
     });
 
     // Renderizar metas conseguidas
@@ -3546,9 +3546,8 @@ function changeOperationsDisplay() {
     `;
     openDetailsModal();
 }
-        // --- operacion diario
-
-        function filterOperations() {
+        // --- 
+   function filterOperations() {
             const yf = document.getElementById('filter-year').value;
             const mf = document.getElementById('filter-month').value;
             const tf = document.getElementById('filter-type').value;
@@ -3560,6 +3559,10 @@ function changeOperationsDisplay() {
             if (rf) fOps = fOps.filter(op => rf === 'win' ? op.amount > 0 : (rf === 'loss' ?
              op.amount < 0 : op.amount === 0));
             renderOperations(fOps);
+        }
+
+        function changeOperationsDisplay() {
+            filterOperations(); // Esto llamará a renderOperations con la nueva configuración
         }
 
         function updateGoalProgress() {
@@ -3645,7 +3648,7 @@ function changeOperationsDisplay() {
             updateWeeklyPerformance();
             renderWeeklySuccessRate();
             updateRecentOperations();
-            
+
             // Renderizar el gráfico de capital después de actualizar los datos
             setTimeout(() => renderCapitalGrowthChart(), 100);
         }
@@ -3912,7 +3915,7 @@ function renderCapitalGrowthChart() {
         labels.push(new Date(date).toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }));
         balanceData.push(dailyBalances[date]);
         currentHWM = Math.max(currentHWM, dailyBalances[date]);
-        
+
         let drawdownValue = currentHWM - settings.trailingDrawdownAmount;
         if (currentHWM >= settings.initialBalance + settings.trailingDrawdownAmount) {
             drawdownValue = settings.initialBalance;
@@ -4139,8 +4142,7 @@ toggleVistaTotal() {
         const textColor = isLightMode ? '#1a1a1a' : '#b3b3b3';
         const titleColor = isLightMode ? '#1a1a1a' : '#ffffff';
         const gridColor = isLightMode ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)';
-        const bgColor = isLightMode ? '#ffffff' : '#1f1f1f';
-        
+
         const retoData = dias.map(d => d.cumplido === null ? null : (d.cumplido ? 1 : 0));
         const operativaData = dias.map(d => d.resultado === null ? null : (d.resultado === 'positivo' ? 1 : -1));
         this.chartInstance = new Chart(canvas.getContext('2d'), {
@@ -4207,7 +4209,7 @@ toggleVistaTotal() {
         const textColor = isLightMode ? '#1a1a1a' : '#b3b3b3';
         const titleColor = isLightMode ? '#1a1a1a' : '#ffffff';
         const gridColor = isLightMode ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)';
-        
+
         if (semanasDelMes.length === 0) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#6c757d'; ctx.textAlign = 'center'; ctx.fillText('No hay datos para este mes', canvas.width / 2, canvas.height / 2);
@@ -4417,20 +4419,20 @@ function openImportModal() {
 function closeImportModal() {
     // Ocultar modal
     document.getElementById('import-modal').style.display = 'none';
-    
+
     // Limpiar array de operaciones
     importedOperations = [];
-    
+
     // Resetear el input de archivo
     const fileInput = document.getElementById('import-file');
     if (fileInput) {
         fileInput.value = '';
     }
-    
+
     // Ocultar preview y status
     document.getElementById('import-preview').style.display = 'none';
     document.getElementById('import-status').style.display = 'none';
-    
+
     // Deshabilitar botón de importar
     document.getElementById('btn-import-confirm').disabled = true;
 }
@@ -4438,37 +4440,37 @@ function closeImportModal() {
 document.getElementById('import-file').addEventListener('change', async function(e) {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     const statusDiv = document.getElementById('import-status');
     statusDiv.style.display = 'block';
     statusDiv.style.background = '#333';
     statusDiv.style.color = '#fff';
     statusDiv.textContent = 'Procesando archivo...';
-    
+
     const formData = new FormData();
     formData.append('file', file);
-    
+
     try {
         const response = await fetch('/api/importar-csv', {
             method: 'POST',
             body: formData
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             importedOperations = data.operaciones;
-            
+
             statusDiv.style.background = '#1a472a';
             statusDiv.style.color = '#4CAF50';
             statusDiv.textContent = `Se procesaron ${data.total_importadas} operaciones (formato: ${data.formato_detectado})`;
-            
+
             const previewDiv = document.getElementById('import-preview');
             const previewContent = document.getElementById('import-preview-content');
             previewDiv.style.display = 'block';
-            
+
             let previewHTML = '<table style="width:100%; font-size: 12px;"><thead><tr><th>Fecha</th><th>Activo</th><th>Tipo</th><th>Contratos</th><th>P. Entrada</th><th>P. Salida</th><th>P/L</th></tr></thead><tbody>';
-            
+
             importedOperations.forEach(op => {
                 const pnlClass = op.importe >= 0 ? 'positive' : 'negative';
                 previewHTML += `<tr>
@@ -4481,10 +4483,10 @@ document.getElementById('import-file').addEventListener('change', async function
                     <td class="${pnlClass}">${op.importe.toFixed(2)} $</td>
                 </tr>`;
             });
-            
+
             previewHTML += '</tbody></table>';
             previewContent.innerHTML = previewHTML;
-            
+
             document.getElementById('btn-import-confirm').disabled = false;
         } else {
             statusDiv.style.background = '#4a1a1a';
@@ -4503,15 +4505,15 @@ async function confirmImport() {
         alert('No hay operaciones para importar');
         return;
     }
-    
+
     if (!currentAccountId) {
         alert('Por favor selecciona una cuenta antes de importar');
         return;
     }
-    
+
     document.getElementById('btn-import-confirm').disabled = true;
     document.getElementById('btn-import-confirm').textContent = 'Importando...';
-    
+
     try {
         const operacionesParaDB = importedOperations.map(op => ({
             fecha_operacion: op.fecha,
@@ -4525,7 +4527,7 @@ async function confirmImport() {
             precio_salida: op.precio_salida || null,
             resultado_pnl: op.importe
         }));
-        
+
         const response = await fetch('/importar-cuenta', {
             method: 'POST',
             headers: {
@@ -4536,10 +4538,13 @@ async function confirmImport() {
                 operaciones: operacionesParaDB
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
+            let imported = 0;
+            let duplicates = 0;
+
             importedOperations.forEach(op => {
                 const newOperation = {
                     id: Date.now() + Math.random(),
@@ -4560,7 +4565,7 @@ async function confirmImport() {
                     media: null,
                     notes: ''
                 };
-                
+
                 const existsLocally = operations.some(existingOp => 
                     existingOp.date === op.fecha &&
                     existingOp.entryTime === op.hora_entrada &&
@@ -4568,25 +4573,32 @@ async function confirmImport() {
                     Math.abs(existingOp.amount - op.importe) < 0.01 &&
                     existingOp.activo === op.activo
                 );
-                
+
                 if (!existsLocally) {
                     operations.push(newOperation);
+                    imported++;
+                } else {
+                    duplicates++;
                 }
             });
-            
+
             importedOperations = [];
-            
+
             operations.sort((a, b) => new Date(a.date + 'T' + (a.entryTime || '00:00:00')) - new Date(b.date + 'T' + (b.entryTime || '00:00:00')));
-            
             calculateHwmAndDrawdownFloor();
             saveData();
             updateUI();
-            
+
+            let message = `✓ Se importaron ${imported} operaciones correctamente`;
+            if (duplicates > 0) {
+                message += `\n\n${duplicates} operaciones duplicadas fueron omitidas`;
+            }
+
             closeImportModal();
-            
+
             setTimeout(() => {
-                alert(data.mensaje);
-            }, 0);
+                alert(message);
+            }, 300);
         } else {
             alert('Error al importar: ' + (data.error || 'Error desconocido'));
         }
