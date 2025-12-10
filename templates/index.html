@@ -4582,8 +4582,11 @@ async function confirmImport() {
             saveData();
             updateUI();
             
-            alert(data.mensaje);
             closeImportModal();
+            
+            setTimeout(() => {
+                alert(data.mensaje);
+            }, 0);
         } else {
             alert('Error al importar: ' + (data.error || 'Error desconocido'));
         }
