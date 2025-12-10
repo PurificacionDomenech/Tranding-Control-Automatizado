@@ -267,7 +267,24 @@ async function setActiveAccount(id) {
                 console.error('Error loading operations from Supabase:', error);
                 operations = [];
             } else {
-                operations = supabaseOps || [];
+                // Mapear campos de Supabase a formato local
+                operations = (supabaseOps || []).map(op => ({
+                    id: op.id,
+                    fecha: op.fecha,
+                    tipo: op.tipo,
+                    activo: op.activo,
+                    estrategia: op.estrategia,
+                    contratos: op.contratos,
+                    tipoEntrada: op.tipo_entrada,
+                    tipoSalida: op.tipo_salida,
+                    horaEntrada: op.hora_entrada,
+                    horaSalida: op.hora_salida,
+                    importe: parseFloat(op.importe) || 0,
+                    mood: op.animo,
+                    notas: op.notas,
+                    mediaUrl: op.media_url,
+                    newsRating: 0
+                }));
                 console.log('Operations loaded from Supabase:', operations.length);
             }
         }
@@ -458,36 +475,77 @@ async function handleTradingFormSubmit(e) {
     }
     
     async function saveOperation() {
-        const operation = {
-            id: Date.now().toString(),
-            fecha,
-            tipo,
-            activo,
-            estrategia,
-            contratos,
-            tipoEntrada,
-            tipoSalida,
-            horaEntrada,
-            horaSalida,
-            importe,
-            mood,
-            notas,
-            mediaUrl,
-            newsRating
-        };
-        
-        operations.unshift(operation);
-        operations.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-        
-        await saveData();
-        updateUI();
-        
-        document.getElementById('trading-form').reset();
-        document.getElementById('date').value = new Date().toISOString().split('T')[0];
-        document.getElementById('journal-news').value = '0';
-        updateNewsStars(0);
-        
-        alert('Operación guardada correctamente.');
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                alert('Debes iniciar sesión para guardar operaciones');
+                return;
+            }
+
+            const operationData = {
+                user_id: user.id,
+                cuenta_id: currentAccountId,
+                fecha: fecha,
+                tipo: tipo || null,
+                activo: activo || null,
+                estrategia: estrategia || null,
+                contratos: contratos || null,
+                tipo_entrada: tipoEntrada || null,
+                tipo_salida: tipoSalida || null,
+                hora_entrada: horaEntrada || null,
+                hora_salida: horaSalida || null,
+                importe: importe,
+                animo: mood || null,
+                notas: notas || null,
+                media_url: mediaUrl || null
+            };
+
+            const { data, error } = await supabase
+                .from('operaciones')
+                .insert([operationData])
+                .select();
+
+            if (error) {
+                console.error('Error al guardar operación:', error);
+                alert('Error al guardar la operación: ' + error.message);
+                return;
+            }
+
+            if (data && data.length > 0) {
+                const operation = {
+                    id: data[0].id,
+                    fecha,
+                    tipo,
+                    activo,
+                    estrategia,
+                    contratos,
+                    tipoEntrada,
+                    tipoSalida,
+                    horaEntrada,
+                    horaSalida,
+                    importe,
+                    mood,
+                    notas,
+                    mediaUrl,
+                    newsRating
+                };
+                
+                operations.unshift(operation);
+                operations.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+                
+                updateUI();
+                
+                document.getElementById('trading-form').reset();
+                document.getElementById('date').value = new Date().toISOString().split('T')[0];
+                document.getElementById('journal-news').value = '0';
+                updateNewsStars(0);
+                
+                alert('Operación guardada correctamente.');
+            }
+        } catch (error) {
+            console.error('Error al guardar operación:', error);
+            alert('Error al guardar la operación: ' + error.message);
+        }
     }
 }
 
