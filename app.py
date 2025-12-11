@@ -1,4 +1,5 @@
 from flask import Flask, render_template, send_from_directory, request, jsonify
+from flask_cors import CORS
 import os
 import csv
 import io
@@ -7,6 +8,7 @@ import psycopg2
 from psycopg2.extras import execute_values
 
 app = Flask(__name__)
+CORS(app)  # Habilitar CORS para todas las rutas
 
 def get_db_connection():
     """Obtiene conexión a la base de datos Supabase"""
@@ -202,16 +204,26 @@ def index():
 def importar_csv():
     """Endpoint para importar archivo CSV de NinjaTrader y devolver operaciones procesadas"""
     try:
+        print(f"📥 Petición recibida en /api/importar-csv")
+        print(f"Content-Type: {request.content_type}")
+        print(f"Files: {list(request.files.keys())}")
+        print(f"Form data: {dict(request.form)}")
+        
         if 'file' not in request.files:
+            print("❌ Error: No se encontró archivo en request.files")
             return jsonify({'error': 'No se proporcionó archivo'}), 400
 
         cuenta_id = request.form.get('cuenta_id')
         user_id = request.form.get('user_id')
 
+        print(f"cuenta_id: {cuenta_id}, user_id: {user_id}")
+
         if not cuenta_id:
+            print("❌ Error: cuenta_id no proporcionado")
             return jsonify({'error': 'cuenta_id es requerido'}), 400
 
         if not user_id:
+            print("❌ Error: user_id no proporcionado")
             return jsonify({'error': 'user_id es requerido'}), 400
 
         file = request.files['file']
@@ -282,18 +294,41 @@ def importar_csv():
 @app.route('/operacion', methods=['POST'])
 def crear_operacion():
     """Endpoint para crear una operación individual"""
-    data = request.get_json()
+    print(f"📥 Petición recibida en /operacion")
+    print(f"Content-Type: {request.content_type}")
+    print(f"Headers: {dict(request.headers)}")
+    print(f"Raw data: {request.data}")
+    
+    # Validar que hay contenido
+    if not request.data:
+        print("❌ Error: Request sin datos")
+        return jsonify({'error': 'No se proporcionaron datos'}), 400
+    
+    # Intentar parsear JSON
+    try:
+        data = request.get_json()
+        print(f"✅ JSON parseado correctamente: {data}")
+    except Exception as e:
+        print(f"❌ Error al parsear JSON: {str(e)}")
+        return jsonify({'error': f'JSON inválido: {str(e)}'}), 400
 
     if not data:
+        print("❌ Error: data es None o vacío")
         return jsonify({'error': 'No se proporcionaron datos'}), 400
 
     cuenta_id = data.get('cuenta_id')
+    print(f"cuenta_id extraído: {cuenta_id}")
+    
     if not cuenta_id:
+        print("❌ Error: cuenta_id no proporcionado")
         return jsonify({'error': 'cuenta_id es requerido'}), 400
 
     # Extraer el token de autorización
     auth_header = request.headers.get('Authorization')
+    print(f"Authorization header: {auth_header}")
+    
     if not auth_header or not auth_header.startswith('Bearer '):
+        print("❌ Error: Token de autorización no válido")
         return jsonify({'error': 'Token de autorización requerido'}), 401
 
     access_token = auth_header.replace('Bearer ', '')
@@ -373,13 +408,26 @@ def crear_operacion():
 @app.route('/importar-cuenta', methods=['POST'])
 def importar_cuenta():
     """Endpoint para importar operaciones evitando duplicados basado en clave única"""
-    data = request.get_json()
+    print(f"📥 Petición recibida en /importar-cuenta")
+    print(f"Content-Type: {request.content_type}")
+    print(f"Raw data length: {len(request.data) if request.data else 0}")
+    
+    try:
+        data = request.get_json()
+        print(f"✅ JSON parseado correctamente")
+    except Exception as e:
+        print(f"❌ Error al parsear JSON: {str(e)}")
+        return jsonify({'error': f'JSON inválido: {str(e)}'}), 400
 
     if not data:
+        print("❌ Error: data es None o vacío")
         return jsonify({'error': 'No se proporcionaron datos'}), 400
 
     cuenta_id = data.get('cuenta_id')
     operaciones = data.get('operaciones', [])
+    
+    print(f"cuenta_id: {cuenta_id}")
+    print(f"Número de operaciones: {len(operaciones)}")
 
     if not cuenta_id:
         return jsonify({'error': 'cuenta_id es requerido'}), 400
@@ -491,7 +539,9 @@ def importar_cuenta():
 @app.route('/operaciones', methods=['GET'])
 def obtener_operaciones():
     """Endpoint para obtener operaciones de una cuenta"""
+    print(f"📥 Petición recibida en /operaciones (GET)")
     cuenta_id = request.args.get('cuenta_id')
+    print(f"cuenta_id solicitado: {cuenta_id}")
 
     conn = None
     cursor = None
