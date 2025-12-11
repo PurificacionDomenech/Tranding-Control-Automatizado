@@ -1545,7 +1545,6 @@
             <select id="account-selector" onchange="setActiveAccount(this.value)"></select>
             <div class="account-buttons">
                 <button onclick="openCreateAccountModal()" class="button-small button-secondary">Nueva Cuenta</button>
-                <button onclick="openImportModal()" class="button-small button-secondary" style="background-color: #4CAF50;">📥 Importar CSV</button>
                 <button onclick="confirmDeleteAccount()" class="button-small button-danger">Eliminar Cuenta</button>
             </div>
             <div class="account-actions">
@@ -2076,32 +2075,6 @@
                 <div class="modal-buttons">
                     <button class="button-secondary" onclick="closeEditModal()">Cancelar</button>
                     <button class="button-primary" onclick="saveEditedOperation()">Guardar Cambios</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Import CSV Modal -->
-        <div id="import-modal" class="settings-modal" style="display: none;">
-            <div class="modal-content" style="max-width: 700px;">
-                <span class="close-modal" onclick="closeImportModal()">&times;</span>
-                <h2>📥 Importar Operaciones de NinjaTrader</h2>
-                <p style="color: #aaa; margin-bottom: 20px;">Selecciona un archivo CSV exportado desde NinjaTrader para importar las operaciones automáticamente.</p>
-                
-                <div class="form-group">
-                    <label for="import-file">Archivo CSV:</label>
-                    <input type="file" id="import-file" accept=".csv" style="width: 100%; padding: 10px; background: #333; border: 1px solid #444; border-radius: 5px; color: #fff;">
-                </div>
-                
-                <div id="import-status" style="display: none; padding: 10px; border-radius: 5px; margin: 15px 0;"></div>
-                
-                <div id="import-preview" style="display: none; margin: 15px 0;">
-                    <h3 style="color: #00f2ea;">Vista previa de operaciones:</h3>
-                    <div id="import-preview-content" style="max-height: 300px; overflow-y: auto; background: #222; padding: 10px; border-radius: 5px;"></div>
-                </div>
-                
-                <div class="modal-buttons" style="margin-top: 20px;">
-                    <button class="button-secondary" onclick="closeImportModal()">Cancelar</button>
-                    <button id="btn-import-confirm" class="button-primary" onclick="confirmImport()" disabled style="background-color: #4CAF50;">Importar Operaciones</button>
                 </div>
             </div>
         </div>
@@ -3794,66 +3767,6 @@ function renderCapitalGrowthChart() {
         window.capitalGrowthChartInstance.destroy();
     }
 
-    // Si no hay operaciones, mostrar gráfico vacío
-    if (operations.length === 0) {
-        window.capitalGrowthChartInstance = new Chart(canvas.getContext('2d'), {
-            type: 'line',
-            data: {
-                labels: ['Inicio'],
-                datasets: [
-                    {
-                        label: 'Balance',
-                        data: [settings.initialBalance],
-                        borderColor: '#00f2ea',
-                        backgroundColor: 'rgba(0, 242, 234, 0.1)',
-                        fill: true,
-                        tension: 0.1,
-                        pointRadius: 5
-                    },
-                    {
-                        label: 'Suelo Drawdown',
-                        data: [settings.initialBalance - settings.trailingDrawdownAmount],
-                        borderColor: '#ef44bc',
-                        borderWidth: 2,
-                        fill: false,
-                        pointRadius: 5
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false,
-                scales: {
-                    x: {
-                        ticks: { color: '#b3b3b3' },
-                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                    },
-                    y: {
-                        ticks: { 
-                            color: '#b3b3b3', 
-                            callback: (v) => v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }) 
-                        },
-                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                    }
-                },
-                plugins: {
-                    legend: { 
-                        display: true,
-                        position: 'top',
-                        align: 'start',
-                        labels: {
-                            color: '#ffffff',
-                            boxWidth: 20,
-                            padding: 20
-                        }
-                    }
-                }
-            }
-        });
-        return;
-    }
-
     // --- 1. Agrupar Operaciones por Día ---
     const dailyBalances = {};
     let runningBalance = settings.initialBalance;
@@ -3874,29 +3787,29 @@ function renderCapitalGrowthChart() {
 
     if (sortedOperations.length > 0) {
         const firstOpDate = new Date(sortedOperations[0].date);
-        firstOpDate.setDate(firstOpDate.getDate() - 1);
+        firstOpDate.setDate(firstOpDate.getDate() - 1); // Un día antes para el "bajón" inicial
 
         labels.push(firstOpDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }));
         balanceData.push(settings.initialBalance);
-        drawdownData.push(settings.initialBalance - settings.trailingDrawdownAmount);
+        drawdownData.push(settings.initialBalance - settings.trailingDrawdownAmount); // Drawdown inicial
     }
 
     let currentHWM = settings.initialBalance;
     for (const date in dailyBalances) {
         labels.push(new Date(date).toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }));
         balanceData.push(dailyBalances[date]);
-        currentHWM = Math.max(currentHWM, dailyBalances[date]);
-        
+        currentHWM = Math.max(currentHWM, dailyBalances[date]); // Actualizamos HWM hasta este punto
+        // Calculamos el drawdown basado en el HWM actual, con lógica de buffer
         let drawdownValue = currentHWM - settings.trailingDrawdownAmount;
         if (currentHWM >= settings.initialBalance + settings.trailingDrawdownAmount) {
-            drawdownValue = settings.initialBalance;
+            drawdownValue = settings.initialBalance; // Fijamos si supera el buffer
         } else {
-            drawdownValue = Math.max(drawdownValue, settings.initialBalance - settings.trailingDrawdownAmount);
+            drawdownValue = Math.max(drawdownValue, settings.initialBalance - settings.trailingDrawdownAmount); // Mínimo permitido
         }
         drawdownData.push(drawdownValue);
     }
 
-    // --- 3. Creación del Gráfico ---
+    // --- 3. Creación del Gráfico Estilo Bulenox ---
     window.capitalGrowthChartInstance = new Chart(canvas.getContext('2d'), {
         type: 'line',
         data: {
@@ -3909,7 +3822,7 @@ function renderCapitalGrowthChart() {
                     backgroundColor: 'rgba(0, 242, 234, 0.1)',
                     fill: true,
                     tension: 0.1,
-                    pointRadius: 5
+                    pointRadius: 5, // Aumentado de 2 a 5 para puntos más grandes
                 },
                 {
                     label: 'Suelo Drawdown',
@@ -3917,7 +3830,7 @@ function renderCapitalGrowthChart() {
                     borderColor: '#ef44bc',
                     borderWidth: 2,
                     fill: false,
-                    pointRadius: 5
+                    pointRadius: 5, // Cambiado de 0 a 5 para mostrar puntos grandes
                 }
             ]
         },
@@ -3931,10 +3844,7 @@ function renderCapitalGrowthChart() {
                     grid: { color: 'rgba(255, 255, 255, 0.1)' }
                 },
                 y: {
-                    ticks: { 
-                        color: '#b3b3b3', 
-                        callback: (v) => v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }) 
-                    },
+                    ticks: { color: '#b3b3b3', callback: (v) => v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }) },
                     grid: { color: 'rgba(255, 255, 255, 0.1)' }
                 }
             },
@@ -4375,150 +4285,6 @@ window.openTab = function(tabName) {
 
 // Cargar tema al inicio
 loadTheme();
-
-// --- Import CSV Functions ---
-let importedOperations = [];
-
-function openImportModal() {
-    document.getElementById('import-modal').style.display = 'flex';
-    document.getElementById('import-file').value = '';
-    document.getElementById('import-preview').style.display = 'none';
-    document.getElementById('import-status').style.display = 'none';
-    document.getElementById('btn-import-confirm').disabled = true;
-    importedOperations = [];
-}
-
-function closeImportModal() {
-    document.getElementById('import-modal').style.display = 'none';
-    importedOperations = [];
-}
-
-document.getElementById('import-file').addEventListener('change', async function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    const statusDiv = document.getElementById('import-status');
-    statusDiv.style.display = 'block';
-    statusDiv.style.background = '#333';
-    statusDiv.style.color = '#fff';
-    statusDiv.textContent = 'Procesando archivo...';
-    
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    try {
-        const response = await fetch('/api/importar-csv', {
-            method: 'POST',
-            body: formData
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            importedOperations = data.operaciones;
-            
-            statusDiv.style.background = '#1a472a';
-            statusDiv.style.color = '#4CAF50';
-            statusDiv.textContent = `Se procesaron ${data.total_importadas} operaciones (formato: ${data.formato_detectado})`;
-            
-            const previewDiv = document.getElementById('import-preview');
-            const previewContent = document.getElementById('import-preview-content');
-            previewDiv.style.display = 'block';
-            
-            let previewHTML = '<table style="width:100%; font-size: 12px;"><thead><tr><th>Fecha</th><th>Activo</th><th>Tipo</th><th>Contratos</th><th>P. Entrada</th><th>P. Salida</th><th>P/L</th></tr></thead><tbody>';
-            
-            importedOperations.forEach(op => {
-                const pnlClass = op.importe >= 0 ? 'positive' : 'negative';
-                previewHTML += `<tr>
-                    <td>${op.fecha}</td>
-                    <td>${op.activo}</td>
-                    <td>${op.tipo}</td>
-                    <td>${op.contratos}</td>
-                    <td>${op.precio_entrada ? op.precio_entrada.toFixed(2) : '-'}</td>
-                    <td>${op.precio_salida ? op.precio_salida.toFixed(2) : '-'}</td>
-                    <td class="${pnlClass}">${op.importe.toFixed(2)} $</td>
-                </tr>`;
-            });
-            
-            previewHTML += '</tbody></table>';
-            previewContent.innerHTML = previewHTML;
-            
-            document.getElementById('btn-import-confirm').disabled = false;
-        } else {
-            statusDiv.style.background = '#4a1a1a';
-            statusDiv.style.color = '#f44336';
-            statusDiv.textContent = `Error: ${data.error}`;
-        }
-    } catch (error) {
-        statusDiv.style.background = '#4a1a1a';
-        statusDiv.style.color = '#f44336';
-        statusDiv.textContent = `Error al procesar archivo: ${error.message}`;
-    }
-});
-
-function confirmImport() {
-    if (importedOperations.length === 0) {
-        alert('No hay operaciones para importar');
-        return;
-    }
-    
-    document.getElementById('btn-import-confirm').disabled = true;
-    
-    let imported = 0;
-    let duplicates = 0;
-    
-    importedOperations.forEach(op => {
-        const isDuplicate = operations.some(existingOp => 
-            existingOp.date === op.fecha &&
-            existingOp.entryTime === op.hora_entrada &&
-            existingOp.exitTime === op.hora_salida &&
-            Math.abs(existingOp.amount - op.importe) < 0.01 &&
-            existingOp.activo === op.activo
-        );
-        
-        if (isDuplicate) {
-            duplicates++;
-            return;
-        }
-        
-        const newOperation = {
-            id: Date.now() + Math.random(),
-            date: op.fecha,
-            type: op.tipo.includes('Compra') ? 'bullish' : (op.tipo.includes('Venta') ? 'bearish' : ''),
-            activo: op.activo,
-            strategy: op.estrategia || 'Importado NinjaTrader',
-            contracts: op.contratos,
-            entryTime: op.hora_entrada || '',
-            exitTime: op.hora_salida || '',
-            entryPrice: op.precio_entrada || 0,
-            exitPrice: op.precio_salida || 0,
-            amount: op.importe,
-            entryType: 'Importado',
-            exitType: 'Importado',
-            newsRating: 0,
-            mood: '',
-            photo: null,
-            notes: ''
-        };
-        
-        operations.push(newOperation);
-        imported++;
-    });
-    
-    importedOperations = [];
-    
-    saveData();
-    updateDisplay();
-    renderCapitalGrowthChart();
-    
-    let message = `Se importaron ${imported} operaciones`;
-    if (duplicates > 0) {
-        message += ` (${duplicates} duplicadas omitidas)`;
-    }
-    
-    closeImportModal();
-    alert(message);
-}
 
     </script>
 </body>
