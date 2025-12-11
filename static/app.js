@@ -336,14 +336,19 @@ function getHWMKey(accountId) {
 }
 
 function getChecklistKey(accountId) {
-    return `${accountId}_checklist`;
+    const today = new Date().toISOString().split('T')[0];
+    return `${accountId}_checklist_${today}`;
+}
+
+function getChecklistItemsKey(accountId) {
+    return `${accountId}_checklist_items`;
 }
 
 // ==================== PERSISTENCE ====================
 async function saveData() {
     if (!currentAccountId) return;
 
-    // Save settings, goals, journals and HWM to localStorage
+    // Save settings, goals, journals, HWM and checklist to localStorage (por cuenta)
     const settingsKey = getSettingsKey(currentAccountId);
     localStorage.setItem(settingsKey, JSON.stringify(settings));
 
@@ -356,8 +361,21 @@ async function saveData() {
     const hwmKey = getHWMKey(currentAccountId);
     localStorage.setItem(hwmKey, highWaterMark.toString());
 
+    // Save checklist state for current day
+    const checklistKey = getChecklistKey(currentAccountId);
+    const currentChecklist = getCurrentChecklistState();
+    if (currentChecklist) {
+        localStorage.setItem(checklistKey, JSON.stringify(currentChecklist));
+    }
+
     // ⚠️ IMPORTANTE: Las operaciones NUNCA se guardan en localStorage
     // SOLO se guardan en Supabase a través de handleTradingFormSubmit
+}
+
+function getCurrentChecklistState() {
+    const today = new Date().toISOString().split('T')[0];
+    const key = `${currentAccountId}_checklist_${today}`;
+    return localStorage.getItem(key);
 }
 
 // ==================== TABNAVIGATION ====================
@@ -1288,29 +1306,36 @@ function updateNewsStars(rating) {
 
 // ==================== CHECKLIST ====================
 function loadChecklist() {
+    const checklistItemsKey = getChecklistItemsKey(currentAccountId);
     const checklistKey = getChecklistKey(currentAccountId);
-    const storedChecklist = localStorage.getItem(checklistKey);
-
-    let checklist = storedChecklist ? JSON.parse(storedChecklist) : getDefaultChecklist();
+    
+    // Cargar lista de items personalizados por cuenta
+    const storedItems = localStorage.getItem(checklistItemsKey);
+    const items = storedItems ? JSON.parse(storedItems) : getDefaultChecklist().map(item => item.text);
+    
+    // Cargar estado de completado para hoy
+    const storedState = localStorage.getItem(checklistKey);
+    const completedState = storedState ? JSON.parse(storedState) : [];
 
     const listaTareas = document.getElementById('listaTareas');
     listaTareas.innerHTML = '';
 
-    checklist.forEach((item, index) => {
+    items.forEach((text, index) => {
         const li = document.createElement('li');
-        li.className = item.completed ? 'completed' : '';
+        const isCompleted = completedState[index] || false;
+        li.className = isCompleted ? 'completed' : '';
 
         if (isChecklistEditMode) {
             li.innerHTML = `
-                <input type="checkbox" ${item.completed ? 'checked' : ''} onchange="toggleChecklistItem(${index})" disabled>
-                <input type="text" value="${item.text}" onchange="updateChecklistItemText(${index}, this.value)" style="flex: 1; margin: 0 10px;">
+                <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="toggleChecklistItem(${index})" disabled>
+                <input type="text" value="${text}" onchange="updateChecklistItemText(${index}, this.value)" style="flex: 1; margin: 0 10px;">
                 <button onclick="removeChecklistItem(${index})" class="button-small button-danger">Eliminar</button>
             `;
         } else {
             li.innerHTML = `
-                <input type="checkbox" ${item.completed ? 'checked' : ''} onchange="toggleChecklistItem(${index})">
-                <span>${item.text}</span>
-                ${item.completed ? '<span class="ok">✓</span>' : ''}
+                <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="toggleChecklistItem(${index})">
+                <span>${text}</span>
+                ${isCompleted ? '<span class="ok">✓</span>' : ''}
             `;
         }
 
@@ -1335,11 +1360,16 @@ function getDefaultChecklist() {
 
 function toggleChecklistItem(index) {
     const checklistKey = getChecklistKey(currentAccountId);
-    const storedChecklist = localStorage.getItem(checklistKey);
-    let checklist = storedChecklist ? JSON.parse(storedChecklist) : getDefaultChecklist();
-
-    checklist[index].completed = !checklist[index].completed;
-    localStorage.setItem(checklistKey, JSON.stringify(checklist));
+    const checklistItemsKey = getChecklistItemsKey(currentAccountId);
+    
+    const storedItems = localStorage.getItem(checklistItemsKey);
+    const items = storedItems ? JSON.parse(storedItems) : getDefaultChecklist().map(item => item.text);
+    
+    const storedState = localStorage.getItem(checklistKey);
+    let completedState = storedState ? JSON.parse(storedState) : [];
+    
+    completedState[index] = !completedState[index];
+    localStorage.setItem(checklistKey, JSON.stringify(completedState));
     loadChecklist();
 }
 
@@ -1348,11 +1378,7 @@ function resetChecklist() {
         return;
     }
     const checklistKey = getChecklistKey(currentAccountId);
-    const storedChecklist = localStorage.getItem(checklistKey);
-    let checklist = storedChecklist ? JSON.parse(storedChecklist) : getDefaultChecklist();
-
-    checklist.forEach(item => item.completed = false);
-    localStorage.setItem(checklistKey, JSON.stringify(checklist));
+    localStorage.removeItem(checklistKey);
     loadChecklist();
 }
 
@@ -1382,12 +1408,12 @@ function saveChecklistChanges() {
 }
 
 function updateChecklistItemText(index, newText) {
-    const checklistKey = getChecklistKey(currentAccountId);
-    const storedChecklist = localStorage.getItem(checklistKey);
-    let checklist = storedChecklist ? JSON.parse(storedChecklist) : getDefaultChecklist();
+    const checklistItemsKey = getChecklistItemsKey(currentAccountId);
+    const storedItems = localStorage.getItem(checklistItemsKey);
+    let items = storedItems ? JSON.parse(storedItems) : getDefaultChecklist().map(item => item.text);
 
-    checklist[index].text = newText;
-    localStorage.setItem(checklistKey, JSON.stringify(checklist));
+    items[index] = newText;
+    localStorage.setItem(checklistItemsKey, JSON.stringify(items));
 }
 
 function removeChecklistItem(index) {
@@ -1395,12 +1421,12 @@ function removeChecklistItem(index) {
         return;
     }
 
-    const checklistKey = getChecklistKey(currentAccountId);
-    const storedChecklist = localStorage.getItem(checklistKey);
-    let checklist = storedChecklist ? JSON.parse(storedChecklist) : getDefaultChecklist();
+    const checklistItemsKey = getChecklistItemsKey(currentAccountId);
+    const storedItems = localStorage.getItem(checklistItemsKey);
+    let items = storedItems ? JSON.parse(storedItems) : getDefaultChecklist().map(item => item.text);
 
-    checklist.splice(index, 1);
-    localStorage.setItem(checklistKey, JSON.stringify(checklist));
+    items.splice(index, 1);
+    localStorage.setItem(checklistItemsKey, JSON.stringify(items));
     loadChecklist();
 }
 
@@ -1413,12 +1439,12 @@ function addNewChecklistItem() {
         return;
     }
 
-    const checklistKey = getChecklistKey(currentAccountId);
-    const storedChecklist = localStorage.getItem(checklistKey);
-    let checklist = storedChecklist ? JSON.parse(storedChecklist) : getDefaultChecklist();
+    const checklistItemsKey = getChecklistItemsKey(currentAccountId);
+    const storedItems = localStorage.getItem(checklistItemsKey);
+    let items = storedItems ? JSON.parse(storedItems) : getDefaultChecklist().map(item => item.text);
 
-    checklist.push({ text: newText, completed: false });
-    localStorage.setItem(checklistKey, JSON.stringify(checklist));
+    items.push(newText);
+    localStorage.setItem(checklistItemsKey, JSON.stringify(items));
 
     newTaskInput.value = '';
     loadChecklist();
