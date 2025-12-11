@@ -1,0 +1,150 @@
+from flask import Flask, render_template, send_from_directory, request, jsonify
+import os
+import csv
+import io
+from datetime import datetime
+import psycopg2
+from psycopg2.extras import execute_values
+
+# --- CONFIGURACIÓN DE LA APLICACIÓN FLASK ---
+# Le decimos a Flask dónde buscar los archivos HTML (en la carpeta 'templates')
+# y los archivos estáticos como CSS y JS (en la carpeta 'static')
+app = Flask(__name__, template_folder='templates', static_folder='static')
+
+
+# --- FUNCIÓN DE CONEXIÓN A LA BASE DE DATOS ---
+def get_db_connection():
+    """Obtiene conexión a la base de datos Supabase desde los Secrets."""
+    database_url = os.environ.get('DATABASE_URL')
+    if not database_url:
+        raise Exception('La variable DATABASE_URL no está configurada en los Secrets de Replit.')
+    return psycopg2.connect(database_url)
+
+
+# --- RUTAS PARA SERVIR LA APLICACIÓN ---
+
+@app.route('/')
+def index():
+    """Esta es la ruta principal. Sirve el archivo index.html."""
+    return render_template('index.html')
+
+@app.route('/<path:filename>')
+def static_files(filename):
+    """Esta ruta sirve archivos estáticos como manifest.json, logo.jpg, etc."""
+    return send_from_directory(app.static_folder, filename)
+
+
+# --- ENDPOINTS DE LA API ---
+
+@app.route('/api/operaciones', methods=['GET'])
+def obtener_operaciones():
+    """Obtiene todas las operaciones de un usuario."""
+    user_id = request.args.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'user_id es requerido'}), 400
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Consulta para obtener operaciones asociadas a un usuario
+        cursor.execute("""
+            SELECT op.id, op.instrumento, op.estrategia, op.fecha_operacion, op.resultado_pnl
+            FROM operaciones op
+            JOIN cuentas_trading ct ON op.cuenta_id = ct.id
+            WHERE ct.user_id = %s
+            ORDER BY op.fecha_operacion DESC, op.hora_entrada DESC
+        """, (user_id,))
+        
+        operaciones = [{
+            'id': row[0], 'instrumento': row[1], 'estrategia': row[2], 
+            'fecha_operacion': row[3].isoformat() if row[3] else None, 
+            'resultado_pnl': float(row[4]) if row[4] is not None else 0.0
+            } for row in cursor.fetchall()]
+            
+        return jsonify({'success': True, 'operaciones': operaciones})
+    except Exception as e:
+        return jsonify({'error': f"Error de base de datos: {str(e)}"}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/operaciones', methods=['POST'])
+def crear_operacion():
+    """Guarda una nueva operación manual en la base de datos."""
+    data = request.get_json()
+    # Aquí implementaremos la lógica para guardar una operación manual.
+    # Por ahora, devolvemos un mensaje de éxito para no romper el frontend.
+    print("Recibida petición para crear operación:", data)
+    return jsonify({'success': True, 'mensaje': 'Operación recibida por el servidor.'})
+
+
+@app.route('/api/importar', methods=['POST'])
+def importar_operaciones():
+    """Importa un lote de operaciones, evitando duplicados."""
+    data = request.get_json()
+    operaciones_a_insertar = data.get('operaciones', [])
+    cuenta_id = data.get('cuenta_id')
+    
+    if not operaciones_a_insertar or not cuenta_id:
+        return jsonify({'error': 'Faltan datos (operaciones o cuenta_id)'}), 400
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 1. Obtener operaciones existentes para no duplicar.
+        # Usamos una clave única: fecha, hora de entrada e instrumento.
+        cursor.execute("SELECT fecha_operacion, hora_entrada, instrumento FROM operaciones WHERE cuenta_id = %s", (cuenta_id,))
+        existentes = set()
+        for row in cursor.fetchall():
+            # Aseguramos un formato consistente para la clave
+            fecha = row[0].isoformat() if row[0] else None
+            hora = str(row[1]) if row[1] else None
+            instrumento = row[2]
+            existentes.add((fecha, hora, instrumento))
+
+        # 2. Filtrar las operaciones que no son duplicadas.
+        nuevas_para_db = []
+        duplicados = 0
+        for op in operaciones_a_insertar:
+            clave_op = (op.get('fecha_operacion'), op.get('hora_entrada'), op.get('instrumento'))
+            if clave_op in existentes:
+                duplicados += 1
+            else:
+                nuevas_para_db.append(op)
+                existentes.add(clave_op)
+
+        # 3. Insertar solo las operaciones nuevas en la base de datos.
+        if nuevas_para_db:
+            valores = [
+                (
+                    cuenta_id, op.get('instrumento'), op.get('estrategia', 'Importado'), op.get('fecha_operacion'),
+                    op.get('hora_entrada'), op.get('hora_salida'), op.get('resultado_pnl', 0)
+                ) for op in nuevas_para_db
+            ]
+            
+            execute_values(cursor, """
+                INSERT INTO operaciones (cuenta_id, instrumento, estrategia, fecha_operacion, hora_entrada, hora_salida, resultado_pnl) 
+                VALUES %s
+            """, valores)
+            conn.commit()
+
+        return jsonify({
+            'success': True,
+            'mensaje': f'Importación completada. {len(nuevas_para_db)} nuevas operaciones guardadas. {duplicados} duplicados omitidos.'
+        })
+
+    except Exception as e:
+        if conn: conn.rollback()
+        return jsonify({'error': f"Error en la importación: {str(e)}"}), 500
+    finally:
+        if conn: conn.close()
+
+
+# --- EJECUCIÓN DE LA APLICACIÓN ---
+if __name__ == '__main__':
+    # Replit usa el puerto 8080 por defecto para las apps web
+    app.run(host='0.0.0.0', port=8080, debug=True)
