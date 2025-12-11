@@ -420,45 +420,45 @@ async function handleTradingFormSubmit(e) {
     
     async function saveOperation() {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
                 throw new Error('Debes iniciar sesión para guardar operaciones');
             }
 
             const operationData = {
-                user_id: user.id,
                 cuenta_id: currentAccountId,
-                fecha: fecha,
-                tipo: tipo || null,
-                activo: activo || null,
+                fecha_operacion: fecha,
+                tipo_operacion: tipo || null,
+                instrumento: activo || null,
                 estrategia: estrategia || null,
                 contratos: contratos,
                 tipo_entrada: tipoEntrada || null,
                 tipo_salida: tipoSalida || null,
                 hora_entrada: horaEntrada || null,
                 hora_salida: horaSalida || null,
-                importe: parseFloat(importe),
-                animo: mood || null,
-                notas: notas || null,
-                media_url: mediaUrl || null
+                resultado_pnl: parseFloat(importe),
+                notas_psicologia: mood || null,
+                captura_url: mediaUrl || null
             };
 
-            console.log('🔄 Guardando operación en Supabase...', operationData);
+            console.log('🔄 Guardando operación a través de la API...', operationData);
 
-            const { data: insertedData, error } = await supabase
-                .from('operaciones')
-                .insert([operationData])
-                .select();
+            const response = await fetch(`${API_BASE_URL}/operacion`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + session.access_token
+                },
+                body: JSON.stringify(operationData)
+            });
 
-            if (error) {
-                throw new Error('Error de Supabase: ' + error.message);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Error HTTP ${response.status}`);
             }
 
-            if (!insertedData || insertedData.length === 0) {
-                throw new Error('No se recibió confirmación de Supabase');
-            }
-
-            console.log('✅ Operación guardada exitosamente en Supabase:', insertedData[0]);
+            const result = await response.json();
+            console.log('✅ Operación guardada exitosamente:', result);
             
             // Recargar operaciones desde Supabase
             await setActiveAccount(currentAccountId);
@@ -469,11 +469,11 @@ async function handleTradingFormSubmit(e) {
             document.getElementById('journal-news').value = '0';
             updateNewsStars(0);
             
-            alert('✅ Operación guardada correctamente en Supabase.');
+            alert('✅ Operación guardada correctamente.');
             
         } catch (error) {
             console.error('❌ ERROR al guardar operación:', error);
-            alert('❌ ERROR: No se pudo guardar la operación en Supabase.\n\n' + error.message + '\n\nVerifica tu conexión a internet y que estés autenticado.');
+            alert('❌ ERROR: No se pudo guardar la operación.\n\n' + error.message + '\n\nVerifica tu conexión a internet y que estés autenticado.');
         }
     }
 }

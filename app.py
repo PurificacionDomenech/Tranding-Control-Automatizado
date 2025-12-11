@@ -291,12 +291,41 @@ def crear_operacion():
     if not cuenta_id:
         return jsonify({'error': 'cuenta_id es requerido'}), 400
 
+    # Extraer el token de autorización
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'Token de autorización requerido'}), 401
+
+    access_token = auth_header.replace('Bearer ', '')
+
     conn = None
     cursor = None
 
     try:
+        # Verificar el token con Supabase y obtener el user_id
+        import jwt
+        import os
+        
+        # Decodificar el JWT para obtener el user_id
+        # El JWT de Supabase contiene el user_id en el campo 'sub'
+        decoded = jwt.decode(access_token, options={"verify_signature": False})
+        user_id = decoded.get('sub')
+        
+        if not user_id:
+            return jsonify({'error': 'Token inválido'}), 401
+
         conn = get_db_connection()
         cursor = conn.cursor()
+
+        # Verificar que la cuenta pertenece al usuario
+        cursor.execute("""
+            SELECT id FROM cuentas_trading
+            WHERE id = %s AND user_id = %s
+        """, (cuenta_id, user_id))
+        
+        cuenta_valida = cursor.fetchone()
+        if not cuenta_valida:
+            return jsonify({'error': 'La cuenta no pertenece a este usuario'}), 403
 
         cursor.execute("""
             INSERT INTO operaciones (
