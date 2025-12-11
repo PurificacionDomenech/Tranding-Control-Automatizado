@@ -200,15 +200,20 @@ def index():
 
 @app.route('/api/importar-csv', methods=['POST'])
 def importar_csv():
-    """Endpoint para importar archivo CSV de NinjaTrader y guardar en Supabase"""
+    """Endpoint para importar archivo CSV de NinjaTrader y devolver operaciones procesadas"""
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'No se proporcionó archivo'}), 400
         
-        # Obtener cuenta_id del formulario
+        # Obtener cuenta_id y user_id del formulario
         cuenta_id = request.form.get('cuenta_id')
+        user_id = request.form.get('user_id')
+        
         if not cuenta_id:
             return jsonify({'error': 'cuenta_id es requerido'}), 400
+        
+        if not user_id:
+            return jsonify({'error': 'user_id es requerido'}), 400
         
         file = request.files['file']
         if file.filename == '':
@@ -247,102 +252,31 @@ def importar_csv():
         
         operaciones_completas = emparejar_operaciones(operaciones_traducidas)
         
-        # Guardar en base de datos
-        conn = None
-        cursor = None
-        
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            
-            # Obtener operaciones existentes para detectar duplicados
-            cursor.execute("""
-                SELECT fecha_operacion, hora_entrada, hora_salida, instrumento, resultado_pnl
-                FROM operaciones 
-                WHERE cuenta_id = %s
-            """, (cuenta_id,))
-            
-            existentes = set()
-            for row in cursor.fetchall():
-                fecha_op = row[0].isoformat() if row[0] else None
-                hora_ent = str(row[1]) if row[1] else None
-                hora_sal = str(row[2]) if row[2] else None
-                instrumento = row[3]
-                pnl = float(row[4]) if row[4] else 0.0
-                
-                clave = (fecha_op, hora_ent, hora_sal, instrumento, round(pnl, 2))
-                existentes.add(clave)
-            
-            operaciones_nuevas = []
-            duplicados = 0
-            
-            # Filtrar duplicados
-            for op in operaciones_completas:
-                fecha_op = op.get('fecha')
-                hora_ent = op.get('hora_entrada')
-                hora_sal = op.get('hora_salida')
-                instrumento = op.get('activo')
-                pnl = float(op.get('importe', 0))
-                
-                clave = (fecha_op, hora_ent, hora_sal, instrumento, round(pnl, 2))
-                
-                if clave in existentes:
-                    duplicados += 1
-                else:
-                    operaciones_nuevas.append(op)
-                    existentes.add(clave)
-            
-            importadas = 0
-            if operaciones_nuevas:
-                valores = []
-                for op in operaciones_nuevas:
-                    valores.append((
-                        cuenta_id,
-                        op.get('activo'),
-                        op.get('estrategia') or 'Importado',
-                        op.get('fecha'),
-                        op.get('hora_entrada'),
-                        op.get('hora_salida'),
-                        op.get('precio_entrada'),
-                        op.get('precio_salida'),
-                        op.get('contratos') or 1,
-                        op.get('importe') or 0,
-                        op.get('tipo'),
-                        None,  # notas_psicologia
-                        None   # captura_url
-                    ))
-                
-                execute_values(cursor, """
-                    INSERT INTO operaciones (
-                        cuenta_id, instrumento, estrategia, fecha_operacion, 
-                        hora_entrada, hora_salida, precio_entrada, precio_salida,
-                        contratos, resultado_pnl, tipo_operacion, notas_psicologia, captura_url
-                    ) VALUES %s
-                """, valores)
-                
-                importadas = len(operaciones_nuevas)
-            
-            conn.commit()
-            
-            return jsonify({
-                'success': True,
-                'operaciones': operaciones_nuevas,
-                'total_recibidas': len(operaciones_completas),
-                'total_importadas': importadas,
-                'total_duplicados': duplicados,
-                'formato_detectado': formato,
-                'mensaje': f'Importación completada. Se recibieron {len(operaciones_completas)} operaciones, se importaron {importadas} nuevas y se omitieron {duplicados} duplicados.'
+        # Formatear operaciones para el frontend
+        operaciones_formateadas = []
+        for op in operaciones_completas:
+            operaciones_formateadas.append({
+                'fecha': op.get('fecha'),
+                'tipo': op.get('tipo'),
+                'activo': op.get('activo'),
+                'estrategia': op.get('estrategia') or 'Importado',
+                'contratos': op.get('contratos') or 1,
+                'tipoEntrada': 'Market',
+                'tipoSalida': 'Market',
+                'hora_entrada': op.get('hora_entrada'),
+                'hora_salida': op.get('hora_salida'),
+                'importe': op.get('importe') or 0
             })
-            
-        except Exception as e:
-            if conn:
-                conn.rollback()
-            raise e
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
+        
+        return jsonify({
+            'success': True,
+            'operaciones': operaciones_formateadas,
+            'total_recibidas': len(operaciones_completas),
+            'total_importadas': len(operaciones_formateadas),
+            'total_duplicados': 0,
+            'formato_detectado': formato,
+            'mensaje': f'Archivo procesado correctamente. Se importaron {len(operaciones_formateadas)} operaciones.'
+        })
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500

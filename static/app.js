@@ -1506,9 +1506,17 @@ async function handleImportFileChange(event) {
         return;
     }
     
+    // Obtener el user_id de Supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        alert('Debes iniciar sesión para importar operaciones');
+        return;
+    }
+    
     const formData = new FormData();
     formData.append('file', file);
     formData.append('cuenta_id', currentAccountId);
+    formData.append('user_id', user.id);
     
     try {
         showImportStatus('Importando operaciones...', 'info');
@@ -1523,10 +1531,39 @@ async function handleImportFileChange(event) {
         if (data.success) {
             showImportStatus(data.mensaje, 'success');
             
-            // Mostrar vista previa de las operaciones importadas
+            // Guardar las operaciones en Supabase
             if (data.operaciones && data.operaciones.length > 0) {
                 importedOperations = data.operaciones;
                 showImportPreview(data.operaciones);
+                
+                // Insertar en Supabase
+                for (const op of data.operaciones) {
+                    const operationData = {
+                        user_id: user.id,
+                        cuenta_id: currentAccountId,
+                        fecha: op.fecha,
+                        tipo: op.tipo || null,
+                        activo: op.activo || null,
+                        estrategia: op.estrategia || null,
+                        contratos: op.contratos || null,
+                        tipo_entrada: op.tipoEntrada || null,
+                        tipo_salida: op.tipoSalida || null,
+                        hora_entrada: op.hora_entrada || null,
+                        hora_salida: op.hora_salida || null,
+                        importe: op.importe,
+                        animo: null,
+                        notas: null,
+                        media_url: null
+                    };
+                    
+                    const { error } = await supabase
+                        .from('operaciones')
+                        .insert([operationData]);
+                    
+                    if (error) {
+                        console.error('Error guardando en Supabase:', error);
+                    }
+                }
             }
             
             // Recargar operaciones
