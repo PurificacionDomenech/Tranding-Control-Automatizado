@@ -1,11 +1,8 @@
 
 // Supabase Initialization
 const SUPABASE_URL = 'https://bjjjutlfinxdwmifskdw.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqamp1dGxmaW54ZHdtaWZza2R3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzUxNDIzNDAsImV4cCI6MjA1MDcxODM0MH0.FgbXw6vD7jogaABU81E_0HAA_mVOQFmLJ';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqamp1dGxmaW54ZHdtaWZza2R3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzUxNDIzNDAsImV4cCI6MjA1MDcxODM0MH0.FgbXw6vD7jogaABU81E_0HAA_mVOQFmLJPqS0mH0uEY';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// API Configuration - URL completa del backend
-const API_BASE_URL = 'https://72e80d21-4370-411c-a310-a1d0475a5589-00-2ol992mlaizrj.spock.replit.dev';
 
 // Constants
 const ACCOUNTS_KEY = 'tradingAccounts';
@@ -23,6 +20,7 @@ let drawdownFloor = 0;
 let showAllOperations = false;
 let importedOperations = [];
 let isChecklistEditMode = false;
+let capitalGrowthChart = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
@@ -40,7 +38,6 @@ document.addEventListener('DOMContentLoaded', function() {
     openTab('dashboard');
     loadTheme();
 
-    // Service Worker registration
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('./sw.js')
@@ -53,7 +50,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Event Listeners
     document.getElementById('trading-form').addEventListener('submit', handleTradingFormSubmit);
     document.getElementById('import-file').addEventListener('change', handleImportFileChange);
 });
@@ -213,7 +209,6 @@ function confirmDeleteAccount() {
     if (accountIndex !== -1) {
         accounts.splice(accountIndex, 1);
         
-        // Remove all data for this account
         const keysToRemove = [
             `${currentAccountId}_operations`,
             `${currentAccountId}_settings`,
@@ -249,46 +244,48 @@ async function setActiveAccount(id) {
     const storedSettings = localStorage.getItem(settingsKey);
     settings = storedSettings ? JSON.parse(storedSettings) : { initialBalance: 50000, consistencyPercentage: 40, trailingDrawdownAmount: 2500 };
     
-    // Load operations ONLY from Supabase - NO FALLBACK to localStorage
     try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-            throw new Error('No hay usuario autenticado. Debes iniciar sesión para ver operaciones.');
+            console.log('No hay usuario autenticado, las operaciones se cargarán después del login');
+            operations = [];
+        } else {
+            console.log('Cargando operaciones desde la API para user:', user.id, 'cuenta:', currentAccountId);
+            
+            const response = await fetch(`/api/operaciones?user_id=${encodeURIComponent(user.id)}&cuenta_id=${encodeURIComponent(currentAccountId)}`);
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Error HTTP ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.operaciones) {
+                operations = data.operaciones.map(op => ({
+                    id: op.id,
+                    fecha: op.fecha,
+                    tipo: op.tipo,
+                    activo: op.activo,
+                    estrategia: op.estrategia,
+                    contratos: op.contratos,
+                    tipoEntrada: op.tipo_entrada,
+                    tipoSalida: op.tipo_salida,
+                    horaEntrada: op.hora_entrada,
+                    horaSalida: op.hora_salida,
+                    importe: parseFloat(op.importe) || 0,
+                    mood: op.animo,
+                    notas: op.notas,
+                    mediaUrl: op.media_url,
+                    newsRating: 0
+                }));
+                console.log('Operaciones cargadas:', operations.length);
+            } else {
+                operations = [];
+            }
         }
-
-        const { data: supabaseOps, error } = await supabase
-            .from('operaciones')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('cuenta_id', currentAccountId)
-            .order('fecha', { ascending: false });
-
-        if (error) {
-            throw new Error('Error cargando operaciones de Supabase: ' + error.message);
-        }
-
-        // Mapear campos de Supabase a formato local
-        operations = (supabaseOps || []).map(op => ({
-            id: op.id,
-            fecha: op.fecha,
-            tipo: op.tipo,
-            activo: op.activo,
-            estrategia: op.estrategia,
-            contratos: op.contratos,
-            tipoEntrada: op.tipo_entrada,
-            tipoSalida: op.tipo_salida,
-            horaEntrada: op.hora_entrada,
-            horaSalida: op.hora_salida,
-            importe: parseFloat(op.importe) || 0,
-            mood: op.animo,
-            notas: op.notas,
-            mediaUrl: op.media_url,
-            newsRating: 0
-        }));
-        console.log('✓ Operaciones cargadas de Supabase:', operations.length);
     } catch (error) {
-        console.error('❌ ERROR CRÍTICO cargando operaciones:', error);
-        alert('ERROR: No se pudieron cargar las operaciones. ' + error.message);
+        console.error('Error cargando operaciones:', error);
         operations = [];
     }
 
@@ -341,7 +338,6 @@ function getChecklistKey(accountId) {
 async function saveData() {
     if (!currentAccountId) return;
     
-    // Save settings, goals, journals and HWM to localStorage
     const settingsKey = getSettingsKey(currentAccountId);
     localStorage.setItem(settingsKey, JSON.stringify(settings));
     
@@ -353,21 +349,31 @@ async function saveData() {
     
     const hwmKey = getHWMKey(currentAccountId);
     localStorage.setItem(hwmKey, highWaterMark.toString());
-    
-    // ⚠️ IMPORTANTE: Las operaciones NUNCA se guardan en localStorage
-    // SOLO se guardan en Supabase a través de handleTradingFormSubmit
 }
 
 // ==================== TAB NAVIGATION ====================
-function openTab(tabName) {
+function openTab(tabName, evt) {
     const tabs = document.querySelectorAll('.tab-content');
     tabs.forEach(tab => tab.classList.remove('active'));
     
     const tabButtons = document.querySelectorAll('.tab');
     tabButtons.forEach(btn => btn.classList.remove('active'));
     
-    document.getElementById(tabName).classList.add('active');
-    event.target.classList.add('active');
+    const tabElement = document.getElementById(tabName);
+    if (tabElement) {
+        tabElement.classList.add('active');
+    }
+    
+    if (evt && evt.target) {
+        evt.target.classList.add('active');
+    } else {
+        tabButtons.forEach(btn => {
+            if (btn.textContent.toLowerCase().includes(tabName.toLowerCase()) || 
+                btn.getAttribute('onclick')?.includes(tabName)) {
+                btn.classList.add('active');
+            }
+        });
+    }
     
     if (tabName === 'historial') {
         filterOperations();
@@ -378,6 +384,10 @@ function openTab(tabName) {
         loadChecklist();
     } else if (tabName === 'Retos') {
         initRetosSemanales();
+    } else if (tabName === 'dashboard') {
+        setTimeout(() => {
+            updateCapitalGrowthChart();
+        }, 100);
     }
 }
 
@@ -397,7 +407,6 @@ async function handleTradingFormSubmit(e) {
     const importe = parseFloat(document.getElementById('amount').value);
     const mood = document.getElementById('journal-mood').value || null;
     const notas = document.getElementById('notes').value || null;
-    const newsRating = parseInt(document.getElementById('journal-news').value) || 0;
     
     if (!fecha || isNaN(importe)) {
         alert('Por favor, completa al menos la fecha y el importe.');
@@ -420,34 +429,35 @@ async function handleTradingFormSubmit(e) {
     
     async function saveOperation() {
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
                 throw new Error('Debes iniciar sesión para guardar operaciones');
             }
 
             const operationData = {
+                user_id: user.id,
                 cuenta_id: currentAccountId,
-                fecha_operacion: fecha,
-                tipo_operacion: tipo || null,
-                instrumento: activo || null,
+                fecha: fecha,
+                tipo: tipo || null,
+                activo: activo || null,
                 estrategia: estrategia || null,
                 contratos: contratos,
                 tipo_entrada: tipoEntrada || null,
                 tipo_salida: tipoSalida || null,
                 hora_entrada: horaEntrada || null,
                 hora_salida: horaSalida || null,
-                resultado_pnl: parseFloat(importe),
-                notas_psicologia: mood || null,
-                captura_url: mediaUrl || null
+                importe: parseFloat(importe),
+                animo: mood || null,
+                notas: notas || null,
+                media_url: mediaUrl || null
             };
 
-            console.log('🔄 Guardando operación a través de la API...', operationData);
+            console.log('Guardando operación...', operationData);
 
-            const response = await fetch(`${API_BASE_URL}/operacion`, {
+            const response = await fetch('/api/operaciones', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + session.access_token
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(operationData)
             });
@@ -458,22 +468,20 @@ async function handleTradingFormSubmit(e) {
             }
 
             const result = await response.json();
-            console.log('✅ Operación guardada exitosamente:', result);
+            console.log('Operación guardada exitosamente:', result);
             
-            // Recargar operaciones desde Supabase
             await setActiveAccount(currentAccountId);
             
-            // Limpiar formulario
             document.getElementById('trading-form').reset();
             document.getElementById('date').value = new Date().toISOString().split('T')[0];
             document.getElementById('journal-news').value = '0';
             updateNewsStars(0);
             
-            alert('✅ Operación guardada correctamente.');
+            alert('Operación guardada correctamente.');
             
         } catch (error) {
-            console.error('❌ ERROR al guardar operación:', error);
-            alert('❌ ERROR: No se pudo guardar la operación.\n\n' + error.message + '\n\nVerifica tu conexión a internet y que estés autenticado.');
+            console.error('ERROR al guardar operación:', error);
+            alert('ERROR: No se pudo guardar la operación.\n\n' + error.message);
         }
     }
 }
@@ -508,41 +516,27 @@ async function deleteOperation(id) {
         return;
     }
     
-    const index = operations.findIndex(op => op.id === id);
-    if (index === -1) {
-        alert('Operación no encontrada');
-        return;
-    }
-    
-    const operation = operations[index];
-    
-    // Delete from Supabase FIRST - REQUIRED
     try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
             throw new Error('No hay usuario autenticado');
         }
 
-        const { error } = await supabase
-            .from('operaciones')
-            .delete()
-            .eq('id', operation.id)
-            .eq('user_id', user.id);
+        const response = await fetch(`/api/operaciones/${id}?user_id=${encodeURIComponent(user.id)}`, {
+            method: 'DELETE'
+        });
 
-        if (error) {
-            throw new Error('Error eliminando de Supabase: ' + error.message);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Error HTTP ${response.status}`);
         }
 
-        // Only remove from local array if Supabase deletion succeeded
-        operations.splice(index, 1);
-        console.log('✓ Operación eliminada de Supabase exitosamente');
+        console.log('Operación eliminada correctamente');
         
-        await saveData();
-        updateUI();
-        filterOperations();
+        await setActiveAccount(currentAccountId);
         
     } catch (error) {
-        console.error('❌ ERROR eliminando operación:', error);
+        console.error('ERROR eliminando operación:', error);
         alert('ERROR: No se pudo eliminar la operación. ' + error.message);
     }
 }
@@ -574,30 +568,53 @@ function closeEditModal() {
 
 async function saveEditedOperation() {
     const id = document.getElementById('edit-operation-id').value;
-    const operation = operations.find(op => op.id === id);
-    if (!operation) return;
     
-    operation.fecha = document.getElementById('edit-date').value;
-    operation.tipo = document.getElementById('edit-type').value || null;
-    operation.activo = document.getElementById('edit-activo').value || null;
-    operation.estrategia = document.getElementById('edit-estrategia').value || null;
-    operation.contratos = parseInt(document.getElementById('edit-contracts').value) || null;
-    operation.tipoEntrada = document.getElementById('edit-entry-type').value || null;
-    operation.tipoSalida = document.getElementById('edit-exit-type').value || null;
-    operation.horaEntrada = document.getElementById('edit-entry-time').value || null;
-    operation.horaSalida = document.getElementById('edit-exit-time').value || null;
-    operation.importe = parseFloat(document.getElementById('edit-amount').value);
-    operation.mood = document.getElementById('edit-mood').value || null;
-    operation.notas = document.getElementById('edit-notes').value || null;
-    
-    operations.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-    
-    await saveData();
-    updateUI();
-    filterOperations();
-    closeEditModal();
-    
-    alert('Operación actualizada correctamente.');
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            throw new Error('No hay usuario autenticado');
+        }
+
+        const operationData = {
+            user_id: user.id,
+            fecha: document.getElementById('edit-date').value,
+            tipo: document.getElementById('edit-type').value || null,
+            activo: document.getElementById('edit-activo').value || null,
+            estrategia: document.getElementById('edit-estrategia').value || null,
+            contratos: parseInt(document.getElementById('edit-contracts').value) || null,
+            tipo_entrada: document.getElementById('edit-entry-type').value || null,
+            tipo_salida: document.getElementById('edit-exit-type').value || null,
+            hora_entrada: document.getElementById('edit-entry-time').value || null,
+            hora_salida: document.getElementById('edit-exit-time').value || null,
+            importe: parseFloat(document.getElementById('edit-amount').value),
+            animo: document.getElementById('edit-mood').value || null,
+            notas: document.getElementById('edit-notes').value || null
+        };
+
+        const response = await fetch(`/api/operaciones/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(operationData)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Error HTTP ${response.status}`);
+        }
+
+        console.log('Operación actualizada correctamente');
+        
+        await setActiveAccount(currentAccountId);
+        closeEditModal();
+        
+        alert('Operación actualizada correctamente.');
+        
+    } catch (error) {
+        console.error('ERROR actualizando operación:', error);
+        alert('ERROR: No se pudo actualizar la operación. ' + error.message);
+    }
 }
 
 function openDetailsModal(id) {
@@ -627,33 +644,30 @@ function openDetailsModal(id) {
         if (operation.mediaUrl.startsWith('data:image')) {
             mediaHTML = `<img src="${operation.mediaUrl}" alt="Trade media" style="max-width: 100%; height: auto; border-radius: 5px; margin-top: 10px;">`;
         } else if (operation.mediaUrl.startsWith('data:video')) {
-            mediaHTML = `<video controls style="max-width: 100%; height: auto; border-radius: 5px; margin-top: 10px;"><source src="${operation.mediaUrl}"></video>`;
+            mediaHTML = `<video src="${operation.mediaUrl}" controls style="max-width: 100%; border-radius: 5px; margin-top: 10px;"></video>`;
         }
     }
     
-    const newsStars = '★'.repeat(operation.newsRating || 0) + '☆'.repeat(4 - (operation.newsRating || 0));
-    
-    const content = `
-        <table style="width: 100%; border-collapse: collapse;">
-            <tr><td style="padding: 8px; border-bottom: 1px solid #4b5563;"><strong>Fecha:</strong></td><td style="padding: 8px; border-bottom: 1px solid #4b5563;">${operation.fecha}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #4b5563;"><strong>Tipo:</strong></td><td style="padding: 8px; border-bottom: 1px solid #4b5563;">${typeText}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #4b5563;"><strong>Activo:</strong></td><td style="padding: 8px; border-bottom: 1px solid #4b5563;">${operation.activo || 'N/A'}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #4b5563;"><strong>Estrategia:</strong></td><td style="padding: 8px; border-bottom: 1px solid #4b5563;">${operation.estrategia || 'N/A'}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #4b5563;"><strong>Contratos:</strong></td><td style="padding: 8px; border-bottom: 1px solid #4b5563;">${operation.contratos || 'N/A'}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #4b5563;"><strong>Tipo Entrada:</strong></td><td style="padding: 8px; border-bottom: 1px solid #4b5563;">${operation.tipoEntrada || 'N/A'}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #4b5563;"><strong>Tipo Salida:</strong></td><td style="padding: 8px; border-bottom: 1px solid #4b5563;">${operation.tipoSalida || 'N/A'}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #4b5563;"><strong>Hora Entrada:</strong></td><td style="padding: 8px; border-bottom: 1px solid #4b5563;">${operation.horaEntrada || 'N/A'}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #4b5563;"><strong>Hora Salida:</strong></td><td style="padding: 8px; border-bottom: 1px solid #4b5563;">${operation.horaSalida || 'N/A'}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #4b5563;"><strong>Duración:</strong></td><td style="padding: 8px; border-bottom: 1px solid #4b5563;">${duration}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #4b5563;"><strong>Importe:</strong></td><td style="padding: 8px; border-bottom: 1px solid #4b5563;" class="${amountClass}">${operation.importe.toFixed(2)} €</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #4b5563;"><strong>Estado de Ánimo:</strong></td><td style="padding: 8px; border-bottom: 1px solid #4b5563;">${operation.mood || 'N/A'}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #4b5563;"><strong>Valoración Noticias:</strong></td><td style="padding: 8px; border-bottom: 1px solid #4b5563;">${newsStars}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #4b5563;"><strong>Notas:</strong></td><td style="padding: 8px; border-bottom: 1px solid #4b5563;">${operation.notas || 'N/A'}</td></tr>
-        </table>
+    const modalContent = `
+        <div class="details-grid">
+            <div class="detail-item"><strong>Fecha:</strong> ${operation.fecha}</div>
+            <div class="detail-item"><strong>Tipo:</strong> ${typeText}</div>
+            <div class="detail-item"><strong>Activo:</strong> ${operation.activo || 'N/A'}</div>
+            <div class="detail-item"><strong>Estrategia:</strong> ${operation.estrategia || 'N/A'}</div>
+            <div class="detail-item"><strong>Contratos:</strong> ${operation.contratos || 'N/A'}</div>
+            <div class="detail-item"><strong>Tipo Entrada:</strong> ${operation.tipoEntrada || 'N/A'}</div>
+            <div class="detail-item"><strong>Tipo Salida:</strong> ${operation.tipoSalida || 'N/A'}</div>
+            <div class="detail-item"><strong>Hora Entrada:</strong> ${operation.horaEntrada || 'N/A'}</div>
+            <div class="detail-item"><strong>Hora Salida:</strong> ${operation.horaSalida || 'N/A'}</div>
+            <div class="detail-item"><strong>Duración:</strong> ${duration}</div>
+            <div class="detail-item"><strong>Estado Ánimo:</strong> ${operation.mood || 'N/A'}</div>
+            <div class="detail-item"><strong>Importe:</strong> <span class="${amountClass}">${operation.importe.toFixed(2)} €</span></div>
+        </div>
+        <div class="detail-notes"><strong>Notas:</strong> ${operation.notas || 'Sin notas'}</div>
         ${mediaHTML}
     `;
     
-    document.getElementById('operation-details-content').innerHTML = content;
+    document.getElementById('details-content').innerHTML = modalContent;
     document.getElementById('details-modal').style.display = 'flex';
 }
 
@@ -661,99 +675,275 @@ function closeDetailsModal() {
     document.getElementById('details-modal').style.display = 'none';
 }
 
-// ==================== UI UPDATES ====================
-function updateUI() {
-    const currentBalance = settings.initialBalance + operations.reduce((sum, op) => sum + op.importe, 0);
-    const profitLoss = currentBalance - settings.initialBalance;
-    const roi = settings.initialBalance > 0 ? ((profitLoss / settings.initialBalance) * 100) : 0;
+// ==================== FILTERING & DISPLAY ====================
+function filterOperations() {
+    const yearFilter = document.getElementById('filter-year').value;
+    const monthFilter = document.getElementById('filter-month').value;
+    const typeFilter = document.getElementById('filter-type').value;
+    const resultFilter = document.getElementById('filter-result').value;
+    const displaySelect = document.getElementById('operations-display');
+    const displayLimit = displaySelect ? parseInt(displaySelect.value) : 4;
     
-    // Update HWM
+    let filtered = [...operations];
+    
+    if (yearFilter) {
+        filtered = filtered.filter(op => op.fecha && op.fecha.startsWith(yearFilter));
+    }
+    
+    if (monthFilter) {
+        filtered = filtered.filter(op => {
+            if (!op.fecha) return false;
+            const month = op.fecha.split('-')[1];
+            return month === monthFilter;
+        });
+    }
+    
+    if (typeFilter) {
+        if (typeFilter === 'none') {
+            filtered = filtered.filter(op => !op.tipo);
+        } else if (typeFilter === 'other') {
+            filtered = filtered.filter(op => op.tipo && op.tipo !== 'bullish' && op.tipo !== 'bearish');
+        } else {
+            filtered = filtered.filter(op => op.tipo === typeFilter);
+        }
+    }
+    
+    if (resultFilter) {
+        if (resultFilter === 'win') {
+            filtered = filtered.filter(op => op.importe > 0);
+        } else if (resultFilter === 'loss') {
+            filtered = filtered.filter(op => op.importe < 0);
+        } else if (resultFilter === 'neutral') {
+            filtered = filtered.filter(op => op.importe === 0);
+        }
+    }
+    
+    filtered.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    
+    const displayOps = displayLimit === -1 ? filtered : filtered.slice(0, displayLimit);
+    
+    renderOperationsTable(displayOps);
+    updateWeeklyPerformance(filtered);
+    displayCompletedJournals();
+}
+
+function changeOperationsDisplay() {
+    filterOperations();
+}
+
+function renderOperationsTable(ops) {
+    const tbody = document.getElementById('operations-list');
+    
+    if (ops.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="12" style="text-align: center;">No hay operaciones para mostrar</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    ops.forEach(op => {
+        const typeText = op.tipo === 'bullish' ? 'Alcista' : op.tipo === 'bearish' ? 'Bajista' : op.tipo || '-';
+        const amountClass = op.importe >= 0 ? 'positive' : 'negative';
+        
+        let duration = '-';
+        if (op.horaEntrada && op.horaSalida) {
+            const [eh, em, es] = op.horaEntrada.split(':').map(Number);
+            const [sh, sm, ss] = op.horaSalida.split(':').map(Number);
+            const entrySeconds = eh * 3600 + em * 60 + (es || 0);
+            const exitSeconds = sh * 3600 + sm * 60 + (ss || 0);
+            const diffSeconds = exitSeconds - entrySeconds;
+            if (diffSeconds >= 0) {
+                const hours = Math.floor(diffSeconds / 3600);
+                const minutes = Math.floor((diffSeconds % 3600) / 60);
+                duration = `${hours}h ${minutes}m`;
+            }
+        }
+        
+        const mediaIcon = op.mediaUrl ? '<span title="Tiene media adjunta">📎</span>' : '-';
+        
+        html += `
+            <tr>
+                <td>${op.fecha}</td>
+                <td>${typeText}</td>
+                <td>${op.activo || '-'}</td>
+                <td>${op.estrategia || '-'}</td>
+                <td>${op.contratos || '-'}</td>
+                <td>${op.tipoEntrada || '-'}</td>
+                <td>${op.tipoSalida || '-'}</td>
+                <td>${duration}</td>
+                <td>${op.mood || '-'}</td>
+                <td class="${amountClass}">${op.importe.toFixed(2)} €</td>
+                <td>${mediaIcon}</td>
+                <td>
+                    <button class="button-small" onclick="openDetailsModal(${op.id})" title="Ver detalles">👁</button>
+                    <button class="button-small" onclick="openEditModal(${op.id})" title="Editar">✏️</button>
+                    <button class="button-small button-danger" onclick="deleteOperation(${op.id})" title="Eliminar">🗑</button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+}
+
+function updateYearFilterOptions() {
+    const yearSelect = document.getElementById('filter-year');
+    const years = new Set();
+    
+    operations.forEach(op => {
+        if (op.fecha) {
+            years.add(op.fecha.split('-')[0]);
+        }
+    });
+    
+    const currentYear = new Date().getFullYear().toString();
+    years.add(currentYear);
+    
+    const sortedYears = Array.from(years).sort().reverse();
+    
+    yearSelect.innerHTML = '<option value="">Todos</option>';
+    sortedYears.forEach(year => {
+        const option = document.createElement('option');
+        option.value = year;
+        option.textContent = year;
+        yearSelect.appendChild(option);
+    });
+}
+
+function updateWeeklyPerformance(ops) {
+    const weeklyData = {
+        'Lunes': { profit: 0, count: 0, wins: 0 },
+        'Martes': { profit: 0, count: 0, wins: 0 },
+        'Miércoles': { profit: 0, count: 0, wins: 0 },
+        'Jueves': { profit: 0, count: 0, wins: 0 },
+        'Viernes': { profit: 0, count: 0, wins: 0 },
+        'Sábado': { profit: 0, count: 0, wins: 0 },
+        'Domingo': { profit: 0, count: 0, wins: 0 }
+    };
+    
+    const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    
+    ops.forEach(op => {
+        if (!op.fecha) return;
+        const date = new Date(op.fecha);
+        const dayName = dayNames[date.getDay()];
+        weeklyData[dayName].profit += op.importe;
+        weeklyData[dayName].count++;
+        if (op.importe > 0) {
+            weeklyData[dayName].wins++;
+        }
+    });
+    
+    const performanceContainer = document.getElementById('weekly-performance');
+    const successRateContainer = document.getElementById('weekly-success-rate');
+    
+    let performanceHTML = '';
+    let successRateHTML = '';
+    
+    ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'].forEach(day => {
+        const data = weeklyData[day];
+        const profitClass = data.profit >= 0 ? 'positive' : 'negative';
+        const successRate = data.count > 0 ? ((data.wins / data.count) * 100).toFixed(0) : 0;
+        
+        performanceHTML += `
+            <div class="stat-box">
+                <h4>${day}</h4>
+                <p class="${profitClass}">${data.profit.toFixed(2)} €</p>
+                <small>${data.count} ops</small>
+            </div>
+        `;
+        
+        successRateHTML += `
+            <div class="stat-box">
+                <h4>${day}</h4>
+                <p>${successRate}%</p>
+                <small>${data.wins}/${data.count} wins</small>
+            </div>
+        `;
+    });
+    
+    performanceContainer.innerHTML = performanceHTML;
+    successRateContainer.innerHTML = successRateHTML;
+}
+
+// ==================== UI UPDATE ====================
+function updateUI() {
+    const totalProfit = operations.reduce((sum, op) => sum + op.importe, 0);
+    const currentBalance = settings.initialBalance + totalProfit;
+    const roi = settings.initialBalance > 0 ? (totalProfit / settings.initialBalance) * 100 : 0;
+    
+    document.getElementById('initial-balance-display').textContent = settings.initialBalance.toFixed(2) + ' €';
+    document.getElementById('current-balance').textContent = currentBalance.toFixed(2) + ' €';
+    
+    const profitLossEl = document.getElementById('profit-loss');
+    profitLossEl.textContent = totalProfit.toFixed(2) + ' €';
+    profitLossEl.className = totalProfit >= 0 ? 'positive' : 'negative';
+    
+    const roiEl = document.getElementById('roi');
+    roiEl.textContent = roi.toFixed(2) + '%';
+    roiEl.className = roi >= 0 ? 'positive' : 'negative';
+    
     if (currentBalance > highWaterMark) {
         highWaterMark = currentBalance;
         const hwmKey = getHWMKey(currentAccountId);
         localStorage.setItem(hwmKey, highWaterMark.toString());
     }
     
-    // Calculate drawdown floor
     drawdownFloor = highWaterMark - settings.trailingDrawdownAmount;
     const marginToFloor = currentBalance - drawdownFloor;
-    
-    document.getElementById('initial-balance-display').textContent = settings.initialBalance.toFixed(2) + ' €';
-    document.getElementById('current-balance').textContent = currentBalance.toFixed(2) + ' €';
-    
-    const plElement = document.getElementById('profit-loss');
-    plElement.textContent = profitLoss.toFixed(2) + ' €';
-    plElement.className = profitLoss >= 0 ? 'positive' : 'negative';
-    
-    const roiElement = document.getElementById('roi');
-    roiElement.textContent = roi.toFixed(2) + '%';
-    roiElement.className = roi >= 0 ? 'positive' : 'negative';
     
     document.getElementById('high-water-mark').textContent = highWaterMark.toFixed(2) + ' €';
     document.getElementById('drawdown-floor').textContent = drawdownFloor.toFixed(2) + ' €';
     
-    const marginElement = document.getElementById('margin-to-floor');
-    marginElement.textContent = marginToFloor.toFixed(2) + ' €';
-    marginElement.className = marginToFloor >= 0 ? 'positive' : 'negative';
-    
-    const drawdownExplanation = document.getElementById('drawdown-explanation');
-    if (marginToFloor < 0) {
-        drawdownExplanation.innerHTML = `<strong class="negative">⚠️ Has superado el límite de drawdown. Saldo actual: ${currentBalance.toFixed(2)} €, Límite: ${drawdownFloor.toFixed(2)} €</strong>`;
-        drawdownExplanation.className = 'drawdown-floor-warning';
-    } else {
-        drawdownExplanation.textContent = `El suelo de drawdown es ${drawdownFloor.toFixed(2)} €. Tienes un margen de ${marginToFloor.toFixed(2)} €.`;
-        drawdownExplanation.className = 'drawdown-info';
-    }
+    const marginEl = document.getElementById('margin-to-floor');
+    marginEl.textContent = marginToFloor.toFixed(2) + ' €';
+    marginEl.className = marginToFloor >= 0 ? 'positive' : 'negative';
     
     updateConsistencyRule();
     updateRecentOperations();
-    updateWeeklyPerformance();
     updateGoalsProgress();
     updateCapitalGrowthChart();
 }
 
 function updateConsistencyRule() {
-    const totalProfit = operations.filter(op => op.importe > 0).reduce((sum, op) => sum + op.importe, 0);
+    const profitByDay = {};
+    let totalProfit = 0;
     
-    if (totalProfit === 0) {
-        document.getElementById('consistency-details').textContent = 'No hay suficientes datos para calcular la consistencia.';
-        document.getElementById('consistency-progress').style.width = '0%';
-        document.querySelector('.progress-label').textContent = '0%';
-        document.getElementById('consistency-progress').className = 'progress-bar';
-        return;
-    }
-    
-    const dailyProfits = {};
-    operations.filter(op => op.importe > 0).forEach(op => {
-        if (!dailyProfits[op.fecha]) {
-            dailyProfits[op.fecha] = 0;
+    operations.forEach(op => {
+        if (op.importe > 0) {
+            if (!profitByDay[op.fecha]) {
+                profitByDay[op.fecha] = 0;
+            }
+            profitByDay[op.fecha] += op.importe;
+            totalProfit += op.importe;
         }
-        dailyProfits[op.fecha] += op.importe;
     });
     
-    const maxDayProfit = Math.max(...Object.values(dailyProfits));
-    const percentage = (maxDayProfit / totalProfit) * 100;
-    const limit = settings.consistencyPercentage;
+    const dailyProfits = Object.values(profitByDay);
+    const maxDayProfit = dailyProfits.length > 0 ? Math.max(...dailyProfits) : 0;
     
-    const progressBar = document.getElementById('consistency-progress');
-    const progressLabel = document.querySelector('.progress-label');
-    progressBar.style.width = Math.min(percentage, 100) + '%';
-    progressLabel.textContent = percentage.toFixed(1) + '%';
-    
-    if (percentage > limit) {
-        progressBar.className = 'progress-bar danger';
-        document.getElementById('consistency-details').innerHTML = `
-            <strong class="negative">⚠️ El día más rentable representa el ${percentage.toFixed(1)}% de las ganancias totales, superando el límite del ${limit}%.</strong>
-        `;
-    } else if (percentage > limit * 0.8) {
-        progressBar.className = 'progress-bar warning';
-        document.getElementById('consistency-details').textContent = `El día más rentable representa el ${percentage.toFixed(1)}% de las ganancias totales. Estás cerca del límite del ${limit}%.`;
-    } else {
-        progressBar.className = 'progress-bar';
-        document.getElementById('consistency-details').textContent = `El día más rentable representa el ${percentage.toFixed(1)}% de las ganancias totales. Límite: ${limit}%.`;
+    let consistencyPercentage = 0;
+    if (totalProfit > 0) {
+        consistencyPercentage = (maxDayProfit / totalProfit) * 100;
     }
     
-    document.getElementById('consistency-limit-display').textContent = limit;
+    const progressBar = document.getElementById('consistency-progress');
+    const progressLabel = progressBar.parentElement.querySelector('.progress-label');
+    
+    progressBar.style.width = Math.min(consistencyPercentage, 100) + '%';
+    progressLabel.textContent = consistencyPercentage.toFixed(1) + '%';
+    
+    const isCompliant = consistencyPercentage <= settings.consistencyPercentage;
+    progressBar.style.backgroundColor = isCompliant ? '#10b0b9' : '#ef44bc';
+    
+    const detailsEl = document.getElementById('consistency-details');
+    if (dailyProfits.length === 0) {
+        detailsEl.textContent = 'No hay suficientes datos para calcular la consistencia.';
+    } else {
+        const maxDayDate = Object.keys(profitByDay).find(key => profitByDay[key] === maxDayProfit);
+        detailsEl.textContent = `Día más rentable: ${maxDayDate} con ${maxDayProfit.toFixed(2)} €. ${isCompliant ? 'Cumples' : 'NO cumples'} la regla de consistencia.`;
+    }
+    
+    document.getElementById('consistency-limit-display').textContent = settings.consistencyPercentage;
 }
 
 function updateRecentOperations() {
@@ -765,199 +955,24 @@ function updateRecentOperations() {
         return;
     }
     
-    let html = '<table style="width: 100%; border-collapse: collapse;"><thead><tr><th>Fecha</th><th>Tipo</th><th>Importe</th></tr></thead><tbody>';
+    let html = '<div class="recent-ops-list">';
     recent.forEach(op => {
-        const typeText = op.tipo === 'bullish' ? 'Alcista' : op.tipo === 'bearish' ? 'Bajista' : op.tipo || 'N/A';
+        const typeText = op.tipo === 'bullish' ? 'Alcista' : op.tipo === 'bearish' ? 'Bajista' : op.tipo || '-';
         const amountClass = op.importe >= 0 ? 'positive' : 'negative';
-        html += `<tr>
-            <td>${op.fecha}</td>
-            <td>${typeText}</td>
-            <td class="${amountClass}">${op.importe.toFixed(2)} €</td>
-        </tr>`;
+        html += `
+            <div class="recent-op-item">
+                <span>${op.fecha}</span>
+                <span>${typeText}</span>
+                <span>${op.activo || '-'}</span>
+                <span class="${amountClass}">${op.importe.toFixed(2)} €</span>
+            </div>
+        `;
     });
-    html += '</tbody></table>';
+    html += '</div>';
     container.innerHTML = html;
 }
 
-function updateWeeklyPerformance() {
-    const weekdays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-    const weekdayData = {};
-    const weekdayStats = {};
-    
-    weekdays.forEach(day => {
-        weekdayData[day] = 0;
-        weekdayStats[day] = { wins: 0, total: 0 };
-    });
-    
-    operations.forEach(op => {
-        const date = new Date(op.fecha);
-        let dayIndex = date.getDay();
-        dayIndex = dayIndex === 0 ? 6 : dayIndex - 1;
-        const dayName = weekdays[dayIndex];
-        weekdayData[dayName] += op.importe;
-        weekdayStats[dayName].total++;
-        if (op.importe > 0) {
-            weekdayStats[dayName].wins++;
-        }
-    });
-    
-    const perfContainer = document.getElementById('weekly-performance');
-    let perfHtml = '';
-    weekdays.forEach(day => {
-        const amount = weekdayData[day];
-        const amountClass = amount >= 0 ? 'positive' : 'negative';
-        perfHtml += `<div class="stat-box"><h4>${day}</h4><p class="${amountClass}">${amount.toFixed(2)} €</p></div>`;
-    });
-    perfContainer.innerHTML = perfHtml;
-    
-    const successContainer = document.getElementById('weekly-success-rate');
-    let successHtml = '';
-    weekdays.forEach(day => {
-        const stats = weekdayStats[day];
-        const successRate = stats.total > 0 ? (stats.wins / stats.total) * 100 : 0;
-        let rateClass = 'percentage-50';
-        if (successRate < 50) {
-            rateClass = 'percentage-below-50';
-        } else if (successRate > 50) {
-            rateClass = 'percentage-above-50';
-        }
-        successHtml += `<div class="stat-box"><h4>${day}</h4><p class="${rateClass}">${successRate.toFixed(1)}%</p><p style="font-size: 0.8em; color: #b3b3b3;">${stats.wins}/${stats.total} operaciones</p></div>`;
-    });
-    successContainer.innerHTML = successHtml;
-}
-
-function updateYearFilterOptions() {
-    const yearFilter = document.getElementById('filter-year');
-    const years = [...new Set(operations.map(op => new Date(op.fecha).getFullYear()))].sort((a, b) => b - a);
-    
-    yearFilter.innerHTML = '<option value="">Todos</option>';
-    years.forEach(year => {
-        const option = document.createElement('option');
-        option.value = year;
-        option.textContent = year;
-        yearFilter.appendChild(option);
-    });
-}
-
-function filterOperations() {
-    const year = document.getElementById('filter-year').value;
-    const month = document.getElementById('filter-month').value;
-    const type = document.getElementById('filter-type').value;
-    const result = document.getElementById('filter-result').value;
-    
-    let filtered = operations;
-    
-    if (year) {
-        filtered = filtered.filter(op => new Date(op.fecha).getFullYear() == year);
-    }
-    if (month) {
-        filtered = filtered.filter(op => {
-            const opMonth = (new Date(op.fecha).getMonth() + 1).toString().padStart(2, '0');
-            return opMonth === month;
-        });
-    }
-    if (type) {
-        if (type === 'none') {
-            filtered = filtered.filter(op => !op.tipo || op.tipo === '');
-        } else {
-            filtered = filtered.filter(op => op.tipo === type);
-        }
-    }
-    if (result) {
-        if (result === 'win') {
-            filtered = filtered.filter(op => op.importe > 0);
-        } else if (result === 'loss') {
-            filtered = filtered.filter(op => op.importe < 0);
-        } else if (result === 'neutral') {
-            filtered = filtered.filter(op => op.importe === 0);
-        }
-    }
-    
-    displayOperations(filtered);
-}
-
-function changeOperationsDisplay() {
-    filterOperations();
-}
-
-function displayOperations(ops) {
-    const tbody = document.getElementById('operations-list');
-    const displayValue = document.getElementById('operations-display').value;
-    const limit = parseInt(displayValue);
-    
-    let displayOps = ops;
-    if (limit !== -1) {
-        displayOps = ops.slice(0, limit);
-    }
-    
-    tbody.innerHTML = '';
-    
-    if (displayOps.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="12" style="text-align: center;">No hay operaciones para mostrar.</td></tr>';
-        return;
-    }
-    
-    displayOps.forEach(op => {
-        const tr = document.createElement('tr');
-        
-        let duration = 'N/A';
-        if (op.horaEntrada && op.horaSalida) {
-            const [eh, em, es] = op.horaEntrada.split(':').map(Number);
-            const [sh, sm, ss] = op.horaSalida.split(':').map(Number);
-            const entrySeconds = eh * 3600 + em * 60 + (es || 0);
-            const exitSeconds = sh * 3600 + sm * 60 + (ss || 0);
-            const diffSeconds = exitSeconds - entrySeconds;
-            if (diffSeconds >= 0) {
-                const hours = Math.floor(diffSeconds / 3600);
-                const minutes = Math.floor((diffSeconds % 3600) / 60);
-                const seconds = diffSeconds % 60;
-                duration = `${hours}h ${minutes}m ${seconds}s`;
-            }
-        }
-        
-        const typeText = op.tipo === 'bullish' ? 'Alcista' : op.tipo === 'bearish' ? 'Bajista' : op.tipo || 'N/A';
-        const amountClass = op.importe >= 0 ? 'positive' : 'negative';
-        
-        if (op.tipo === 'bullish') {
-            tr.classList.add('operation-bullish');
-        } else if (op.tipo === 'bearish') {
-            tr.classList.add('operation-bearish');
-        }
-        
-        let mediaPreview = '';
-        if (op.mediaUrl) {
-            if (op.mediaUrl.startsWith('data:image')) {
-                mediaPreview = `<img src="${op.mediaUrl}" alt="Trade" style="max-width: 50px; max-height: 50px; cursor: pointer;" onclick="openDetailsModal('${op.id}')">`;
-            } else if (op.mediaUrl.startsWith('data:video')) {
-                mediaPreview = `<video style="max-width: 50px; max-height: 50px; cursor: pointer;" onclick="openDetailsModal('${op.id}')"><source src="${op.mediaUrl}"></video>`;
-            }
-        }
-        
-        tr.innerHTML = `
-            <td>${op.fecha}</td>
-            <td>${typeText}</td>
-            <td>${op.activo || 'N/A'}</td>
-            <td>${op.estrategia || 'N/A'}</td>
-            <td>${op.contratos || 'N/A'}</td>
-            <td>${op.tipoEntrada || 'N/A'}</td>
-            <td>${op.tipoSalida || 'N/A'}</td>
-            <td>${duration}</td>
-            <td>${op.mood || 'N/A'}</td>
-            <td class="${amountClass}">${op.importe.toFixed(2)} €</td>
-            <td>${mediaPreview}</td>
-            <td>
-                <button class="button-small" onclick="openDetailsModal('${op.id}')">Ver</button>
-                <button class="button-small button-secondary" onclick="openEditModal('${op.id}')">Editar</button>
-                <button class="button-small button-danger" onclick="deleteOperation('${op.id}')">Eliminar</button>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-// ==================== CAPITAL GROWTH CHART ====================
-let capitalGrowthChart = null;
-
+// ==================== CHART ====================
 function updateCapitalGrowthChart() {
     const ctx = document.getElementById('capitalGrowthChart');
     if (!ctx) return;
@@ -1082,22 +1097,23 @@ async function resetAllData() {
         return;
     }
     
-    // Delete operations from Supabase
     try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-            const { error } = await supabase
-                .from('operaciones')
-                .delete()
-                .eq('user_id', user.id)
-                .eq('cuenta_id', currentAccountId);
-
-            if (error) {
-                console.error('Error deleting operations from Supabase:', error);
+        if (user && currentAccountId) {
+            const response = await fetch(`/api/operaciones?user_id=${encodeURIComponent(user.id)}&cuenta_id=${encodeURIComponent(currentAccountId)}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.operaciones) {
+                    for (const op of data.operaciones) {
+                        await fetch(`/api/operaciones/${op.id}?user_id=${encodeURIComponent(user.id)}`, {
+                            method: 'DELETE'
+                        });
+                    }
+                }
             }
         }
     } catch (error) {
-        console.error('Error in resetAllData:', error);
+        console.error('Error eliminando operaciones:', error);
     }
     
     operations = [];
@@ -1130,7 +1146,6 @@ function saveJournalEntry() {
     
     journals.push(entry);
     
-    // Guardar en localStorage
     const journalsKey = getJournalsKey(currentAccountId);
     localStorage.setItem(journalsKey, JSON.stringify(journals));
     
@@ -1157,8 +1172,8 @@ function displayJournalEntries() {
                 <div class="entry-header">
                     <span><strong>${entry.date}</strong>: ${entry.title}</span>
                     <div>
-                        <button class="button-small button-secondary" onclick="markJournalCompleted('${entry.id}')">✓ Completar</button>
-                        <button class="delete-entry" onclick="deleteJournalEntry('${entry.id}')">✕</button>
+                        <button class="button-small button-secondary" onclick="markJournalCompleted('${entry.id}')">Completar</button>
+                        <button class="delete-entry" onclick="deleteJournalEntry('${entry.id}')">X</button>
                     </div>
                 </div>
             </div>
@@ -1176,7 +1191,7 @@ function markJournalCompleted(id) {
         saveData();
         displayJournalEntries();
         displayCompletedJournals();
-        alert('¡Felicidades! Meta completada.');
+        alert('Meta completada.');
     }
 }
 
@@ -1208,7 +1223,7 @@ function displayCompletedJournals() {
             <div class="entry">
                 <div class="entry-header">
                     <span><strong>${entry.date}</strong>: ${entry.title}</span>
-                    <span style="color: #10b0b9;">✓ Completada el ${entry.completedDate}</span>
+                    <span style="color: #10b0b9;">Completada el ${entry.completedDate}</span>
                 </div>
             </div>
         `;
@@ -1221,7 +1236,6 @@ function saveGoals() {
     goals.weekly = parseFloat(document.getElementById('weekly-goal').value) || 0;
     goals.monthly = parseFloat(document.getElementById('monthly-goal').value) || 0;
     
-    // Guardar en localStorage
     const goalsKey = getGoalsKey(currentAccountId);
     localStorage.setItem(goalsKey, JSON.stringify(goals));
     
@@ -1459,10 +1473,7 @@ async function handleImportFileChange(event) {
     try {
         showImportStatus('Importando operaciones...', 'info');
         
-        const API_URL = 'https://72e80d21-4370-411c-a310-a1d0475a5589-00-2ol992mlaizrj.spock.replit.dev/api/importar-csv';
-        console.log('Llamando a API:', API_URL);
-        
-        const response = await fetch(API_URL, {
+        const response = await fetch('/api/importar-csv', {
             method: 'POST',
             body: formData
         });
@@ -1474,9 +1485,8 @@ async function handleImportFileChange(event) {
         const data = await response.json();
         
         if (data.success && data.operaciones) {
-            showImportStatus('Guardando en Supabase...', 'info');
+            showImportStatus('Guardando operaciones...', 'info');
             
-            // Guardar cada operación en Supabase
             let guardadas = 0;
             let errores = 0;
             
@@ -1499,27 +1509,34 @@ async function handleImportFileChange(event) {
                     media_url: null
                 };
                 
-                const { error } = await supabase
-                    .from('operaciones')
-                    .insert([operationData]);
-                
-                if (error) {
-                    console.error('Error guardando operación en Supabase:', error);
+                try {
+                    const saveResponse = await fetch('/api/operaciones', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(operationData)
+                    });
+                    
+                    if (saveResponse.ok) {
+                        guardadas++;
+                    } else {
+                        errores++;
+                    }
+                } catch (e) {
+                    console.error('Error guardando operación:', e);
                     errores++;
-                } else {
-                    guardadas++;
                 }
             }
             
             showImportStatus(`Operaciones guardadas: ${guardadas}, Errores: ${errores}`, 'success');
             showImportPreview(data.operaciones);
             
-            // Recargar operaciones desde Supabase
             await setActiveAccount(currentAccountId);
             
             setTimeout(() => {
                 closeImportModal();
-                alert(`Importación completada: ${guardadas} operaciones guardadas en Supabase.`);
+                alert(`Importación completada: ${guardadas} operaciones guardadas.`);
             }, 2000);
         } else {
             showImportStatus('Error: ' + (data.error || 'Error procesando el archivo'), 'error');
@@ -1580,22 +1597,18 @@ function toggleTheme() {
     localStorage.setItem('theme', theme);
     
     const themeToggle = document.getElementById('theme-toggle');
-    themeToggle.textContent = theme === 'light' ? '☀️' : '🌙';
+    themeToggle.textContent = theme === 'light' ? 'Sol' : 'Luna';
 }
 
 function loadTheme() {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'light') {
+    const theme = localStorage.getItem('theme') || 'dark';
+    if (theme === 'light') {
         document.body.classList.add('light-mode');
-        document.getElementById('theme-toggle').textContent = '☀️';
-    } else {
-        document.getElementById('theme-toggle').textContent = '🌙';
+        document.getElementById('theme-toggle').textContent = 'Sol';
     }
 }
 
 // ==================== RETOS SEMANALES ====================
 function initRetosSemanales() {
-    // Implementación completa de Retos Semanales
-    // (código muy extenso, incluido en el archivo original)
     console.log('Retos Semanales initialized');
 }

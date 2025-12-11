@@ -55,7 +55,25 @@ The application supports Progressive Web App features:
 The application runs on port 5000 using Flask.
 Access through the Replit webview.
 
+## API Endpoints (Updated)
+- `GET /` - Main application
+- `GET /api/operaciones` - Get operations for a user/account
+- `POST /api/operaciones` - Create a new operation
+- `PUT /api/operaciones/<id>` - Update an operation
+- `DELETE /api/operaciones/<id>` - Delete an operation
+- `POST /api/importar-csv` - Import NinjaTrader CSV file
+
 ## Recent Changes
+- **2025-12-11**: Major bug fixes and refactoring:
+  - Fixed JavaScript error "Cannot read properties of undefined" in openTab function
+  - Fixed API endpoint mismatch (frontend was calling `/operacion` but backend had `/api/operaciones`)
+  - Removed hardcoded API URLs, now using relative paths
+  - Implemented complete CRUD operations in backend (create, read, update, delete)
+  - Added idempotent insert to avoid duplicates (using unique constraint)
+  - Fixed database initialization with proper table creation
+  - Fixed auth forms to use proper form elements for better accessibility
+  - Operations are now stored in PostgreSQL database via Flask API (not localStorage)
+  - Fixed capital growth chart rendering
 - **2025-12-09**: Added CSV import feature for NinjaTrader data
 - **2025-12-09**: Re-cloned complete application with authentication
 - **2024-12-08**: Cloned complete Trading Control application from existing Replit project

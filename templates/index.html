@@ -23,38 +23,38 @@
             <h1>Trading Control</h1>
 
             <!-- Formulario de Login -->
-            <div id="login-form" style="margin-bottom: 30px;">
+            <form id="login-form" style="margin-bottom: 30px;" onsubmit="event.preventDefault(); handleLogin();">
                 <h2>Iniciar Sesión</h2>
                 <div class="form-group">
                     <label for="login-email">Email:</label>
-                    <input type="email" id="login-email" required placeholder="correo@ejemplo.com">
+                    <input type="email" id="login-email" required placeholder="correo@ejemplo.com" autocomplete="email">
                 </div>
                 <div class="form-group">
                     <label for="login-password">Contraseña:</label>
-                    <input type="password" id="login-password" required placeholder="Introduce tu contraseña">
+                    <input type="password" id="login-password" required placeholder="Introduce tu contraseña" autocomplete="current-password">
                 </div>
-                <button onclick="handleLogin()">Iniciar Sesión</button>
+                <button type="submit">Iniciar Sesión</button>
                 <p style="text-align: center; margin-top: 15px;">
-                    ¿No tienes cuenta? <a href="#" onclick="toggleAuthForms()" style="color: #00f2ea;">Regístrate aquí</a>
+                    ¿No tienes cuenta? <a href="#" onclick="toggleAuthForms(); return false;" style="color: #00f2ea;">Regístrate aquí</a>
                 </p>
-            </div>
+            </form>
 
             <!-- Formulario de Registro -->
-            <div id="register-form" style="display: none;">
+            <form id="register-form" style="display: none;" onsubmit="event.preventDefault(); handleRegister();">
                 <h2>Registro</h2>
                 <div class="form-group">
                     <label for="register-email">Email:</label>
-                    <input type="email" id="register-email" required placeholder="correo@ejemplo.com">
+                    <input type="email" id="register-email" required placeholder="correo@ejemplo.com" autocomplete="email">
                 </div>
                 <div class="form-group">
                     <label for="register-password">Contraseña:</label>
-                    <input type="password" id="register-password" required placeholder="Mínimo 6 caracteres">
+                    <input type="password" id="register-password" required placeholder="Mínimo 6 caracteres" autocomplete="new-password">
                 </div>
-                <button onclick="handleRegister()">Registrarse</button>
+                <button type="submit">Registrarse</button>
                 <p style="text-align: center; margin-top: 15px;">
-                    ¿Ya tienes cuenta? <a href="#" onclick="toggleAuthForms()" style="color: #00f2ea;">Inicia sesión aquí</a>
+                    ¿Ya tienes cuenta? <a href="#" onclick="toggleAuthForms(); return false;" style="color: #00f2ea;">Inicia sesión aquí</a>
                 </p>
-            </div>
+            </form>
         </div>
     </div>
 
@@ -75,12 +75,12 @@
         </div>
 
         <div class="tabs">
-            <button class="tab active" onclick="openTab('dashboard')">Dashboard</button>
-            <button class="tab" onclick="openTab('checklist')">Checklist</button>
-            <button class="tab" onclick="openTab('registro')">Registro</button>
-            <button class="tab" onclick="openTab('historial')">Historial</button>
-            <button class="tab" onclick="openTab('objetivos')">Objetivos</button>
-            <button class="tab" onclick="openTab('Retos')">Retos Semanales</button>
+            <button class="tab active" onclick="openTab('dashboard', event)">Dashboard</button>
+            <button class="tab" onclick="openTab('checklist', event)">Checklist</button>
+            <button class="tab" onclick="openTab('registro', event)">Registro</button>
+            <button class="tab" onclick="openTab('historial', event)">Historial</button>
+            <button class="tab" onclick="openTab('objetivos', event)">Objetivos</button>
+            <button class="tab" onclick="openTab('Retos', event)">Retos Semanales</button>
         </div>
 
         <!-- Dashboard -->
