@@ -255,42 +255,42 @@ async function setActiveAccount(id) {
     try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-            throw new Error('No hay usuario autenticado. Debes iniciar sesión para ver operaciones.');
+            console.log('No hay usuario autenticado, las operaciones se cargarán después del login');
+            operations = [];
+        } else {
+            const { data: supabaseOps, error } = await supabase
+                .from('operaciones')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('cuenta_id', currentAccountId)
+                .order('fecha', { ascending: false });
+
+            if (error) {
+                throw new Error('Error cargando operaciones de Supabase: ' + error.message);
+            }
+
+            // Mapear campos de Supabase a formato local
+            operations = (supabaseOps || []).map(op => ({
+                id: op.id,
+                fecha: op.fecha,
+                tipo: op.tipo,
+                activo: op.activo,
+                estrategia: op.estrategia,
+                contratos: op.contratos,
+                tipoEntrada: op.tipo_entrada,
+                tipoSalida: op.tipo_salida,
+                horaEntrada: op.hora_entrada,
+                horaSalida: op.hora_salida,
+                importe: parseFloat(op.importe) || 0,
+                mood: op.animo,
+                notas: op.notas,
+                mediaUrl: op.media_url,
+                newsRating: 0
+            }));
+            console.log('✓ Operaciones cargadas de Supabase:', operations.length);
         }
-
-        const { data: supabaseOps, error } = await supabase
-            .from('operaciones')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('cuenta_id', currentAccountId)
-            .order('fecha', { ascending: false });
-
-        if (error) {
-            throw new Error('Error cargando operaciones de Supabase: ' + error.message);
-        }
-
-        // Mapear campos de Supabase a formato local
-        operations = (supabaseOps || []).map(op => ({
-            id: op.id,
-            fecha: op.fecha,
-            tipo: op.tipo,
-            activo: op.activo,
-            estrategia: op.estrategia,
-            contratos: op.contratos,
-            tipoEntrada: op.tipo_entrada,
-            tipoSalida: op.tipo_salida,
-            horaEntrada: op.hora_entrada,
-            horaSalida: op.hora_salida,
-            importe: parseFloat(op.importe) || 0,
-            mood: op.animo,
-            notas: op.notas,
-            mediaUrl: op.media_url,
-            newsRating: 0
-        }));
-        console.log('✓ Operaciones cargadas de Supabase:', operations.length);
     } catch (error) {
         console.error('❌ ERROR CRÍTICO cargando operaciones:', error);
-        alert('ERROR: No se pudieron cargar las operaciones. ' + error.message);
         operations = [];
     }
 
@@ -378,16 +378,22 @@ function getCurrentChecklistState() {
     return localStorage.getItem(key);
 }
 
-// ==================== TABNAVIGATION ====================
-function openTab(tabName) {
+// ==================== TAB NAVIGATION ====================
+function openTab(tabName, buttonElement) {
     const tabs = document.querySelectorAll('.tab-content');
     tabs.forEach(tab => tab.classList.remove('active'));
 
     const tabButtons = document.querySelectorAll('.tab');
     tabButtons.forEach(btn => btn.classList.remove('active'));
 
-    document.getElementById(tabName).classList.add('active');
-    event.target.classList.add('active');
+    const targetTab = document.getElementById(tabName);
+    if (targetTab) {
+        targetTab.classList.add('active');
+    }
+
+    if (buttonElement) {
+        buttonElement.classList.add('active');
+    }
 
     if (tabName === 'historial') {
         filterOperations();
@@ -1451,12 +1457,6 @@ function addNewChecklistItem() {
 }
 
 // ==================== IMPORT CSV ====================
-// --- Update Display Function ---
-function updateDisplay() {
-    updateUI();
-    filterOperations();
-}
-
 let importedOperations = [];
 
 function openImportModal() {
@@ -1669,9 +1669,9 @@ async function confirmImport() {
 
     importedOperations = [];
 
-    calculateHwmAndDrawdownFloor();
     await saveData();
     updateUI();
+    filterOperations();
 
     let message = `Se importaron ${imported} operaciones`;
     if (duplicates > 0) {
