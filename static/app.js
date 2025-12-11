@@ -4,8 +4,8 @@ const SUPABASE_URL = 'https://bjjjutlfinxdwmifskdw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqamp1dGxmaW54ZHdtaWZza2R3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzUxNDIzNDAsImV4cCI6MjA1MDcxODM0MH0.FgbXw6vD7jogaABU81E_0HAA_mVOQFmLJ';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// API Configuration
-const API_BASE_URL = window.location.origin;
+// API Configuration - URL completa del backend
+const API_BASE_URL = 'https://72e80d21-4370-411c-a310-a1d0475a5589-00-2ol992mlaizrj.spock.replit.dev';
 
 // Constants
 const ACCOUNTS_KEY = 'tradingAccounts';
@@ -249,47 +249,46 @@ async function setActiveAccount(id) {
     const storedSettings = localStorage.getItem(settingsKey);
     settings = storedSettings ? JSON.parse(storedSettings) : { initialBalance: 50000, consistencyPercentage: 40, trailingDrawdownAmount: 2500 };
     
-    // Load operations from Supabase
+    // Load operations ONLY from Supabase - NO FALLBACK to localStorage
     try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-            console.log('No user logged in');
-            operations = [];
-        } else {
-            const { data: supabaseOps, error } = await supabase
-                .from('operaciones')
-                .select('*')
-                .eq('user_id', user.id)
-                .eq('cuenta_id', currentAccountId)
-                .order('fecha', { ascending: false });
-
-            if (error) {
-                console.error('Error loading operations from Supabase:', error);
-                operations = [];
-            } else {
-                // Mapear campos de Supabase a formato local
-                operations = (supabaseOps || []).map(op => ({
-                    id: op.id,
-                    fecha: op.fecha,
-                    tipo: op.tipo,
-                    activo: op.activo,
-                    estrategia: op.estrategia,
-                    contratos: op.contratos,
-                    tipoEntrada: op.tipo_entrada,
-                    tipoSalida: op.tipo_salida,
-                    horaEntrada: op.hora_entrada,
-                    horaSalida: op.hora_salida,
-                    importe: parseFloat(op.importe) || 0,
-                    mood: op.animo,
-                    notas: op.notas,
-                    mediaUrl: op.media_url,
-                    newsRating: 0
-                }));
-                console.log('Operations loaded from Supabase:', operations.length);
-            }
+            throw new Error('No hay usuario autenticado. Debes iniciar sesión para ver operaciones.');
         }
+
+        const { data: supabaseOps, error } = await supabase
+            .from('operaciones')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('cuenta_id', currentAccountId)
+            .order('fecha', { ascending: false });
+
+        if (error) {
+            throw new Error('Error cargando operaciones de Supabase: ' + error.message);
+        }
+
+        // Mapear campos de Supabase a formato local
+        operations = (supabaseOps || []).map(op => ({
+            id: op.id,
+            fecha: op.fecha,
+            tipo: op.tipo,
+            activo: op.activo,
+            estrategia: op.estrategia,
+            contratos: op.contratos,
+            tipoEntrada: op.tipo_entrada,
+            tipoSalida: op.tipo_salida,
+            horaEntrada: op.hora_entrada,
+            horaSalida: op.hora_salida,
+            importe: parseFloat(op.importe) || 0,
+            mood: op.animo,
+            notas: op.notas,
+            mediaUrl: op.media_url,
+            newsRating: 0
+        }));
+        console.log('✓ Operaciones cargadas de Supabase:', operations.length);
     } catch (error) {
-        console.error('Error in setActiveAccount:', error);
+        console.error('❌ ERROR CRÍTICO cargando operaciones:', error);
+        alert('ERROR: No se pudieron cargar las operaciones. ' + error.message);
         operations = [];
     }
 
@@ -354,6 +353,8 @@ async function saveData() {
     
     const hwmKey = getHWMKey(currentAccountId);
     localStorage.setItem(hwmKey, highWaterMark.toString());
+    
+    // Operations are now ONLY saved to Supabase, not localStorage
 }
 
 // ==================== TAB NAVIGATION ====================
@@ -509,31 +510,41 @@ async function deleteOperation(id) {
     }
     
     const index = operations.findIndex(op => op.id === id);
-    if (index !== -1) {
-        const operation = operations[index];
-        
-        // Delete from Supabase
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user && operation.id.toString().length > 13) {
-                const { error } = await supabase
-                    .from('operaciones')
-                    .delete()
-                    .eq('id', operation.id)
-                    .eq('user_id', user.id);
-
-                if (error) {
-                    console.error('Error deleting operation from Supabase:', error);
-                }
-            }
-        } catch (error) {
-            console.error('Error in deleteOperation:', error);
+    if (index === -1) {
+        alert('Operación no encontrada');
+        return;
+    }
+    
+    const operation = operations[index];
+    
+    // Delete from Supabase FIRST - REQUIRED
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            throw new Error('No hay usuario autenticado');
         }
-        
+
+        const { error } = await supabase
+            .from('operaciones')
+            .delete()
+            .eq('id', operation.id)
+            .eq('user_id', user.id);
+
+        if (error) {
+            throw new Error('Error eliminando de Supabase: ' + error.message);
+        }
+
+        // Only remove from local array if Supabase deletion succeeded
         operations.splice(index, 1);
+        console.log('✓ Operación eliminada de Supabase exitosamente');
+        
         await saveData();
         updateUI();
         filterOperations();
+        
+    } catch (error) {
+        console.error('❌ ERROR eliminando operación:', error);
+        alert('ERROR: No se pudo eliminar la operación. ' + error.message);
     }
 }
 
@@ -1449,10 +1460,17 @@ async function handleImportFileChange(event) {
     try {
         showImportStatus('Importando operaciones...', 'info');
         
-        const response = await fetch(`${API_BASE_URL}/api/importar-csv`, {
+        const API_URL = 'https://72e80d21-4370-411c-a310-a1d0475a5589-00-2ol992mlaizrj.spock.replit.dev/api/importar-csv';
+        console.log('Llamando a API:', API_URL);
+        
+        const response = await fetch(API_URL, {
             method: 'POST',
             body: formData
         });
+        
+        if (!response.ok) {
+            throw new Error(`Error HTTP ${response.status}: ${response.statusText}`);
+        }
         
         const data = await response.json();
         
