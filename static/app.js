@@ -360,7 +360,7 @@ async function saveData() {
     // SOLO se guardan en Supabase a través de handleTradingFormSubmit
 }
 
-// ==================== TAB NAVIGATION ====================
+// ==================== TABNAVIGATION ====================
 function openTab(tabName) {
     const tabs = document.querySelectorAll('.tab-content');
     tabs.forEach(tab => tab.classList.remove('active'));
@@ -1425,10 +1425,13 @@ function addNewChecklistItem() {
 }
 
 // ==================== IMPORT CSV ====================
+// --- Update Display Function ---
 function updateDisplay() {
     updateUI();
-    renderOperations();
+    filterOperations();
 }
+
+let importedOperations = [];
 
 function openImportModal() {
     document.getElementById('import-modal').style.display = 'flex';
@@ -1578,6 +1581,79 @@ function showImportPreview(trades) {
     html += '</tbody></table>';
     contentDiv.innerHTML = html;
     previewDiv.style.display = 'block';
+}
+
+// --- Calculate HWM and Drawdown Floor ---
+function calculateHwmAndDrawdownFloor() {
+    const currentBalance = settings.initialBalance + operations.reduce((sum, op) => sum + op.importe, 0);
+    if (currentBalance > highWaterMark) {
+        highWaterMark = currentBalance;
+        const hwmKey = getHWMKey(currentAccountId);
+        localStorage.setItem(hwmKey, highWaterMark.toString());
+    }
+    drawdownFloor = highWaterMark - settings.trailingDrawdownAmount;
+}
+
+async function confirmImport() {
+    if (importedOperations.length === 0) {
+        alert('No hay operaciones para importar');
+        return;
+    }
+
+    document.getElementById('btn-import-confirm').disabled = true;
+
+    let imported = 0;
+    let duplicates = 0;
+
+    importedOperations.forEach(op => {
+        const isDuplicate = operations.some(existingOp =>
+            existingOp.fecha === op.fecha &&
+            existingOp.horaEntrada === op.hora_entrada &&
+            existingOp.horaSalida === op.hora_salida &&
+            Math.abs(existingOp.importe - op.importe) < 0.01 &&
+            existingOp.activo === op.activo
+        );
+
+        if (isDuplicate) {
+            duplicates++;
+            return;
+        }
+
+        const newOperation = {
+            id: Date.now() + Math.random(),
+            fecha: op.fecha,
+            tipo: op.tipo.includes('Compra') ? 'bullish' : (op.tipo.includes('Venta') ? 'bearish' : ''),
+            activo: op.activo,
+            estrategia: op.estrategia || 'Importado NinjaTrader',
+            contratos: op.contratos,
+            horaEntrada: op.hora_entrada || '',
+            horaSalida: op.hora_salida || '',
+            tipoEntrada: 'Importado',
+            tipoSalida: 'Importado',
+            importe: op.importe,
+            mood: '',
+            notas: '',
+            newsRating: 0,
+            mediaUrl: null
+        };
+
+        operations.push(newOperation);
+        imported++;
+    });
+
+    importedOperations = [];
+
+    calculateHwmAndDrawdownFloor();
+    await saveData();
+    updateUI();
+
+    let message = `Se importaron ${imported} operaciones`;
+    if (duplicates > 0) {
+        message += ` (${duplicates} duplicadas omitidas)`;
+    }
+
+    closeImportModal();
+    alert(message);
 }
 
 // ==================== THEME ====================

@@ -21,7 +21,7 @@ def detectar_formato_csv(headers):
         return 'grid'
     elif 'Precio promedio' in headers:
         return 'orders'
-    return 'unknown'
+    return 'unknown'wn'
 
 def traducir_operacion_grid(ejecucion_ninja):
     """Traduce formato Grid de NinjaTrader"""
