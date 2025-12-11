@@ -1,4 +1,3 @@
-
 // Supabase Initialization
 const SUPABASE_URL = 'https://bjjjutlfinxdwmifskdw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqamp1dGxmaW54ZHdtaWZza2R3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzUxNDIzNDAsImV4cCI6MjA1MDcxODM0MH0.FgbXw6vD7jogaABU81E_0HAA_mVOQFmLJ';
@@ -55,7 +54,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Event Listeners
     document.getElementById('trading-form').addEventListener('submit', handleTradingFormSubmit);
-    document.getElementById('import-file').addEventListener('change', handleImportFileChange);
+    const importFileInput = document.getElementById('import-file');
+    if (importFileInput) {
+        importFileInput.addEventListener('change', handleImportFileChange);
+    }
 });
 
 // ==================== AUTH FUNCTIONS ====================
@@ -212,7 +214,7 @@ function confirmDeleteAccount() {
     const accountIndex = accounts.findIndex(a => a.id === currentAccountId);
     if (accountIndex !== -1) {
         accounts.splice(accountIndex, 1);
-        
+
         // Remove all data for this account
         const keysToRemove = [
             `${currentAccountId}_operations`,
@@ -223,9 +225,9 @@ function confirmDeleteAccount() {
             `${currentAccountId}_checklist`
         ];
         keysToRemove.forEach(key => localStorage.removeItem(key));
-        
+
         saveAccounts();
-        
+
         if (accounts.length > 0) {
             setActiveAccount(accounts[0].id);
         } else {
@@ -248,7 +250,7 @@ async function setActiveAccount(id) {
     const settingsKey = getSettingsKey(currentAccountId);
     const storedSettings = localStorage.getItem(settingsKey);
     settings = storedSettings ? JSON.parse(storedSettings) : { initialBalance: 50000, consistencyPercentage: 40, trailingDrawdownAmount: 2500 };
-    
+
     // Load operations ONLY from Supabase - NO FALLBACK to localStorage
     try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -293,19 +295,19 @@ async function setActiveAccount(id) {
     }
 
     operations.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-    
+
     const goalsKey = getGoalsKey(currentAccountId);
     const storedGoals = localStorage.getItem(goalsKey);
     goals = storedGoals ? JSON.parse(storedGoals) : { weekly: 0, monthly: 0 };
-    
+
     const journalsKey = getJournalsKey(currentAccountId);
     const storedJournals = localStorage.getItem(journalsKey);
     journals = storedJournals ? JSON.parse(storedJournals) : [];
-    
+
     const hwmKey = getHWMKey(currentAccountId);
     const storedHWM = localStorage.getItem(hwmKey);
     highWaterMark = storedHWM ? parseFloat(storedHWM) : settings.initialBalance;
-    
+
     updateAccountSelector();
     updateUI();
     filterOperations();
@@ -340,20 +342,20 @@ function getChecklistKey(accountId) {
 // ==================== PERSISTENCE ====================
 async function saveData() {
     if (!currentAccountId) return;
-    
+
     // Save settings, goals, journals and HWM to localStorage
     const settingsKey = getSettingsKey(currentAccountId);
     localStorage.setItem(settingsKey, JSON.stringify(settings));
-    
+
     const goalsKey = getGoalsKey(currentAccountId);
     localStorage.setItem(goalsKey, JSON.stringify(goals));
-    
+
     const journalsKey = getJournalsKey(currentAccountId);
     localStorage.setItem(journalsKey, JSON.stringify(journals));
-    
+
     const hwmKey = getHWMKey(currentAccountId);
     localStorage.setItem(hwmKey, highWaterMark.toString());
-    
+
     // ⚠️ IMPORTANTE: Las operaciones NUNCA se guardan en localStorage
     // SOLO se guardan en Supabase a través de handleTradingFormSubmit
 }
@@ -362,13 +364,13 @@ async function saveData() {
 function openTab(tabName) {
     const tabs = document.querySelectorAll('.tab-content');
     tabs.forEach(tab => tab.classList.remove('active'));
-    
+
     const tabButtons = document.querySelectorAll('.tab');
     tabButtons.forEach(btn => btn.classList.remove('active'));
-    
+
     document.getElementById(tabName).classList.add('active');
     event.target.classList.add('active');
-    
+
     if (tabName === 'historial') {
         filterOperations();
     } else if (tabName === 'objetivos') {
@@ -384,7 +386,7 @@ function openTab(tabName) {
 // ==================== OPERATIONS ====================
 async function handleTradingFormSubmit(e) {
     e.preventDefault();
-    
+
     const fecha = document.getElementById('date').value;
     const tipo = document.getElementById('type').value;
     const activo = getCustomOrSelectedValue('activo', 'custom-activo-input');
@@ -398,15 +400,15 @@ async function handleTradingFormSubmit(e) {
     const mood = document.getElementById('journal-mood').value || null;
     const notas = document.getElementById('notes').value || null;
     const newsRating = parseInt(document.getElementById('journal-news').value) || 0;
-    
+
     if (!fecha || isNaN(importe)) {
         alert('Por favor, completa al menos la fecha y el importe.');
         return;
     }
-    
+
     const mediaFile = document.getElementById('trade-media').files[0];
     let mediaUrl = null;
-    
+
     if (mediaFile) {
         const reader = new FileReader();
         reader.onload = async function(event) {
@@ -417,7 +419,7 @@ async function handleTradingFormSubmit(e) {
     } else {
         await saveOperation();
     }
-    
+
     async function saveOperation() {
         try {
             const { data: { session } } = await supabase.auth.getSession();
@@ -459,18 +461,18 @@ async function handleTradingFormSubmit(e) {
 
             const result = await response.json();
             console.log('✅ Operación guardada exitosamente:', result);
-            
+
             // Recargar operaciones desde Supabase
             await setActiveAccount(currentAccountId);
-            
+
             // Limpiar formulario
             document.getElementById('trading-form').reset();
             document.getElementById('date').value = new Date().toISOString().split('T')[0];
             document.getElementById('journal-news').value = '0';
             updateNewsStars(0);
-            
+
             alert('✅ Operación guardada correctamente.');
-            
+
         } catch (error) {
             console.error('❌ ERROR al guardar operación:', error);
             alert('❌ ERROR: No se pudo guardar la operación.\n\n' + error.message + '\n\nVerifica tu conexión a internet y que estés autenticado.');
@@ -481,7 +483,7 @@ async function handleTradingFormSubmit(e) {
 function getCustomOrSelectedValue(selectId, customInputId) {
     const select = document.getElementById(selectId);
     const customInput = document.getElementById(customInputId);
-    
+
     if (select.value === 'custom' && customInput) {
         return customInput.value.trim() || null;
     }
@@ -491,7 +493,7 @@ function getCustomOrSelectedValue(selectId, customInputId) {
 function handleAssetSelection(selectElement) {
     const customInputId = selectElement.id.replace(/^(activo|estrategia|entry-type|exit-type)$/, 'custom-$1-input');
     const customInput = document.getElementById(customInputId);
-    
+
     if (customInput) {
         if (selectElement.value === 'custom') {
             customInput.style.display = 'block';
@@ -507,15 +509,15 @@ async function deleteOperation(id) {
     if (!confirm('¿Estás seguro de que quieres eliminar esta operación?')) {
         return;
     }
-    
+
     const index = operations.findIndex(op => op.id === id);
     if (index === -1) {
         alert('Operación no encontrada');
         return;
     }
-    
+
     const operation = operations[index];
-    
+
     // Delete from Supabase FIRST - REQUIRED
     try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -536,11 +538,11 @@ async function deleteOperation(id) {
         // Only remove from local array if Supabase deletion succeeded
         operations.splice(index, 1);
         console.log('✓ Operación eliminada de Supabase exitosamente');
-        
+
         await saveData();
         updateUI();
         filterOperations();
-        
+
     } catch (error) {
         console.error('❌ ERROR eliminando operación:', error);
         alert('ERROR: No se pudo eliminar la operación. ' + error.message);
@@ -550,7 +552,7 @@ async function deleteOperation(id) {
 function openEditModal(id) {
     const operation = operations.find(op => op.id === id);
     if (!operation) return;
-    
+
     document.getElementById('edit-operation-id').value = id;
     document.getElementById('edit-date').value = operation.fecha;
     document.getElementById('edit-type').value = operation.tipo || '';
@@ -564,7 +566,7 @@ function openEditModal(id) {
     document.getElementById('edit-amount').value = operation.importe;
     document.getElementById('edit-mood').value = operation.mood || '';
     document.getElementById('edit-notes').value = operation.notas || '';
-    
+
     document.getElementById('edit-modal').style.display = 'flex';
 }
 
@@ -576,7 +578,7 @@ async function saveEditedOperation() {
     const id = document.getElementById('edit-operation-id').value;
     const operation = operations.find(op => op.id === id);
     if (!operation) return;
-    
+
     operation.fecha = document.getElementById('edit-date').value;
     operation.tipo = document.getElementById('edit-type').value || null;
     operation.activo = document.getElementById('edit-activo').value || null;
@@ -589,21 +591,21 @@ async function saveEditedOperation() {
     operation.importe = parseFloat(document.getElementById('edit-amount').value);
     operation.mood = document.getElementById('edit-mood').value || null;
     operation.notas = document.getElementById('edit-notes').value || null;
-    
+
     operations.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-    
+
     await saveData();
     updateUI();
     filterOperations();
     closeEditModal();
-    
+
     alert('Operación actualizada correctamente.');
 }
 
 function openDetailsModal(id) {
     const operation = operations.find(op => op.id === id);
     if (!operation) return;
-    
+
     let duration = 'N/A';
     if (operation.horaEntrada && operation.horaSalida) {
         const [eh, em, es] = operation.horaEntrada.split(':').map(Number);
@@ -618,10 +620,10 @@ function openDetailsModal(id) {
             duration = `${hours}h ${minutes}m ${seconds}s`;
         }
     }
-    
+
     const typeText = operation.tipo === 'bullish' ? 'Alcista' : operation.tipo === 'bearish' ? 'Bajista' : operation.tipo || 'N/A';
     const amountClass = operation.importe >= 0 ? 'positive' : 'negative';
-    
+
     let mediaHTML = '';
     if (operation.mediaUrl) {
         if (operation.mediaUrl.startsWith('data:image')) {
@@ -630,9 +632,9 @@ function openDetailsModal(id) {
             mediaHTML = `<video controls style="max-width: 100%; height: auto; border-radius: 5px; margin-top: 10px;"><source src="${operation.mediaUrl}"></video>`;
         }
     }
-    
+
     const newsStars = '★'.repeat(operation.newsRating || 0) + '☆'.repeat(4 - (operation.newsRating || 0));
-    
+
     const content = `
         <table style="width: 100%; border-collapse: collapse;">
             <tr><td style="padding: 8px; border-bottom: 1px solid #4b5563;"><strong>Fecha:</strong></td><td style="padding: 8px; border-bottom: 1px solid #4b5563;">${operation.fecha}</td></tr>
@@ -652,7 +654,7 @@ function openDetailsModal(id) {
         </table>
         ${mediaHTML}
     `;
-    
+
     document.getElementById('operation-details-content').innerHTML = content;
     document.getElementById('details-modal').style.display = 'flex';
 }
@@ -666,36 +668,36 @@ function updateUI() {
     const currentBalance = settings.initialBalance + operations.reduce((sum, op) => sum + op.importe, 0);
     const profitLoss = currentBalance - settings.initialBalance;
     const roi = settings.initialBalance > 0 ? ((profitLoss / settings.initialBalance) * 100) : 0;
-    
+
     // Update HWM
     if (currentBalance > highWaterMark) {
         highWaterMark = currentBalance;
         const hwmKey = getHWMKey(currentAccountId);
         localStorage.setItem(hwmKey, highWaterMark.toString());
     }
-    
+
     // Calculate drawdown floor
     drawdownFloor = highWaterMark - settings.trailingDrawdownAmount;
     const marginToFloor = currentBalance - drawdownFloor;
-    
+
     document.getElementById('initial-balance-display').textContent = settings.initialBalance.toFixed(2) + ' €';
     document.getElementById('current-balance').textContent = currentBalance.toFixed(2) + ' €';
-    
+
     const plElement = document.getElementById('profit-loss');
     plElement.textContent = profitLoss.toFixed(2) + ' €';
     plElement.className = profitLoss >= 0 ? 'positive' : 'negative';
-    
+
     const roiElement = document.getElementById('roi');
     roiElement.textContent = roi.toFixed(2) + '%';
     roiElement.className = roi >= 0 ? 'positive' : 'negative';
-    
+
     document.getElementById('high-water-mark').textContent = highWaterMark.toFixed(2) + ' €';
     document.getElementById('drawdown-floor').textContent = drawdownFloor.toFixed(2) + ' €';
-    
+
     const marginElement = document.getElementById('margin-to-floor');
     marginElement.textContent = marginToFloor.toFixed(2) + ' €';
     marginElement.className = marginToFloor >= 0 ? 'positive' : 'negative';
-    
+
     const drawdownExplanation = document.getElementById('drawdown-explanation');
     if (marginToFloor < 0) {
         drawdownExplanation.innerHTML = `<strong class="negative">⚠️ Has superado el límite de drawdown. Saldo actual: ${currentBalance.toFixed(2)} €, Límite: ${drawdownFloor.toFixed(2)} €</strong>`;
@@ -704,7 +706,7 @@ function updateUI() {
         drawdownExplanation.textContent = `El suelo de drawdown es ${drawdownFloor.toFixed(2)} €. Tienes un margen de ${marginToFloor.toFixed(2)} €.`;
         drawdownExplanation.className = 'drawdown-info';
     }
-    
+
     updateConsistencyRule();
     updateRecentOperations();
     updateWeeklyPerformance();
@@ -714,7 +716,7 @@ function updateUI() {
 
 function updateConsistencyRule() {
     const totalProfit = operations.filter(op => op.importe > 0).reduce((sum, op) => sum + op.importe, 0);
-    
+
     if (totalProfit === 0) {
         document.getElementById('consistency-details').textContent = 'No hay suficientes datos para calcular la consistencia.';
         document.getElementById('consistency-progress').style.width = '0%';
@@ -722,7 +724,7 @@ function updateConsistencyRule() {
         document.getElementById('consistency-progress').className = 'progress-bar';
         return;
     }
-    
+
     const dailyProfits = {};
     operations.filter(op => op.importe > 0).forEach(op => {
         if (!dailyProfits[op.fecha]) {
@@ -730,16 +732,16 @@ function updateConsistencyRule() {
         }
         dailyProfits[op.fecha] += op.importe;
     });
-    
+
     const maxDayProfit = Math.max(...Object.values(dailyProfits));
     const percentage = (maxDayProfit / totalProfit) * 100;
     const limit = settings.consistencyPercentage;
-    
+
     const progressBar = document.getElementById('consistency-progress');
     const progressLabel = document.querySelector('.progress-label');
     progressBar.style.width = Math.min(percentage, 100) + '%';
     progressLabel.textContent = percentage.toFixed(1) + '%';
-    
+
     if (percentage > limit) {
         progressBar.className = 'progress-bar danger';
         document.getElementById('consistency-details').innerHTML = `
@@ -752,19 +754,19 @@ function updateConsistencyRule() {
         progressBar.className = 'progress-bar';
         document.getElementById('consistency-details').textContent = `El día más rentable representa el ${percentage.toFixed(1)}% de las ganancias totales. Límite: ${limit}%.`;
     }
-    
+
     document.getElementById('consistency-limit-display').textContent = limit;
 }
 
 function updateRecentOperations() {
     const container = document.getElementById('recent-operations');
     const recent = operations.slice(0, 5);
-    
+
     if (recent.length === 0) {
         container.innerHTML = '<p>No hay operaciones recientes para mostrar.</p>';
         return;
     }
-    
+
     let html = '<table style="width: 100%; border-collapse: collapse;"><thead><tr><th>Fecha</th><th>Tipo</th><th>Importe</th></tr></thead><tbody>';
     recent.forEach(op => {
         const typeText = op.tipo === 'bullish' ? 'Alcista' : op.tipo === 'bearish' ? 'Bajista' : op.tipo || 'N/A';
@@ -783,12 +785,12 @@ function updateWeeklyPerformance() {
     const weekdays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
     const weekdayData = {};
     const weekdayStats = {};
-    
+
     weekdays.forEach(day => {
         weekdayData[day] = 0;
         weekdayStats[day] = { wins: 0, total: 0 };
     });
-    
+
     operations.forEach(op => {
         const date = new Date(op.fecha);
         let dayIndex = date.getDay();
@@ -800,7 +802,7 @@ function updateWeeklyPerformance() {
             weekdayStats[dayName].wins++;
         }
     });
-    
+
     const perfContainer = document.getElementById('weekly-performance');
     let perfHtml = '';
     weekdays.forEach(day => {
@@ -809,7 +811,7 @@ function updateWeeklyPerformance() {
         perfHtml += `<div class="stat-box"><h4>${day}</h4><p class="${amountClass}">${amount.toFixed(2)} €</p></div>`;
     });
     perfContainer.innerHTML = perfHtml;
-    
+
     const successContainer = document.getElementById('weekly-success-rate');
     let successHtml = '';
     weekdays.forEach(day => {
@@ -829,7 +831,7 @@ function updateWeeklyPerformance() {
 function updateYearFilterOptions() {
     const yearFilter = document.getElementById('filter-year');
     const years = [...new Set(operations.map(op => new Date(op.fecha).getFullYear()))].sort((a, b) => b - a);
-    
+
     yearFilter.innerHTML = '<option value="">Todos</option>';
     years.forEach(year => {
         const option = document.createElement('option');
@@ -844,9 +846,9 @@ function filterOperations() {
     const month = document.getElementById('filter-month').value;
     const type = document.getElementById('filter-type').value;
     const result = document.getElementById('filter-result').value;
-    
+
     let filtered = operations;
-    
+
     if (year) {
         filtered = filtered.filter(op => new Date(op.fecha).getFullYear() == year);
     }
@@ -872,7 +874,7 @@ function filterOperations() {
             filtered = filtered.filter(op => op.importe === 0);
         }
     }
-    
+
     displayOperations(filtered);
 }
 
@@ -884,22 +886,22 @@ function displayOperations(ops) {
     const tbody = document.getElementById('operations-list');
     const displayValue = document.getElementById('operations-display').value;
     const limit = parseInt(displayValue);
-    
+
     let displayOps = ops;
     if (limit !== -1) {
         displayOps = ops.slice(0, limit);
     }
-    
+
     tbody.innerHTML = '';
-    
+
     if (displayOps.length === 0) {
         tbody.innerHTML = '<tr><td colspan="12" style="text-align: center;">No hay operaciones para mostrar.</td></tr>';
         return;
     }
-    
+
     displayOps.forEach(op => {
         const tr = document.createElement('tr');
-        
+
         let duration = 'N/A';
         if (op.horaEntrada && op.horaSalida) {
             const [eh, em, es] = op.horaEntrada.split(':').map(Number);
@@ -914,16 +916,16 @@ function displayOperations(ops) {
                 duration = `${hours}h ${minutes}m ${seconds}s`;
             }
         }
-        
+
         const typeText = op.tipo === 'bullish' ? 'Alcista' : op.tipo === 'bearish' ? 'Bajista' : op.tipo || 'N/A';
         const amountClass = op.importe >= 0 ? 'positive' : 'negative';
-        
+
         if (op.tipo === 'bullish') {
             tr.classList.add('operation-bullish');
         } else if (op.tipo === 'bearish') {
             tr.classList.add('operation-bearish');
         }
-        
+
         let mediaPreview = '';
         if (op.mediaUrl) {
             if (op.mediaUrl.startsWith('data:image')) {
@@ -932,7 +934,7 @@ function displayOperations(ops) {
                 mediaPreview = `<video style="max-width: 50px; max-height: 50px; cursor: pointer;" onclick="openDetailsModal('${op.id}')"><source src="${op.mediaUrl}"></video>`;
             }
         }
-        
+
         tr.innerHTML = `
             <td>${op.fecha}</td>
             <td>${typeText}</td>
@@ -961,33 +963,33 @@ let capitalGrowthChart = null;
 function updateCapitalGrowthChart() {
     const ctx = document.getElementById('capitalGrowthChart');
     if (!ctx) return;
-    
+
     const sortedOps = [...operations].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
-    
+
     const labels = ['Inicio'];
     const balances = [settings.initialBalance];
     const hwmData = [settings.initialBalance];
     const floorData = [settings.initialBalance - settings.trailingDrawdownAmount];
-    
+
     let runningBalance = settings.initialBalance;
     let runningHWM = settings.initialBalance;
-    
+
     sortedOps.forEach(op => {
         labels.push(op.fecha);
         runningBalance += op.importe;
         balances.push(runningBalance);
-        
+
         if (runningBalance > runningHWM) {
             runningHWM = runningBalance;
         }
         hwmData.push(runningHWM);
         floorData.push(runningHWM - settings.trailingDrawdownAmount);
     });
-    
+
     if (capitalGrowthChart) {
         capitalGrowthChart.destroy();
     }
-    
+
     capitalGrowthChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -1070,7 +1072,7 @@ async function saveSettings() {
     settings.initialBalance = parseFloat(document.getElementById('initial-balance').value);
     settings.trailingDrawdownAmount = parseFloat(document.getElementById('trailing-drawdown-amount').value);
     settings.consistencyPercentage = parseFloat(document.getElementById('consistency-percentage').value);
-    
+
     await saveData();
     updateUI();
     closeSettingsModal();
@@ -1081,7 +1083,7 @@ async function resetAllData() {
     if (!confirm('¿Estás seguro de que quieres reiniciar todos los datos? Esta acción no se puede deshacer.')) {
         return;
     }
-    
+
     // Delete operations from Supabase
     try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -1099,12 +1101,12 @@ async function resetAllData() {
     } catch (error) {
         console.error('Error in resetAllData:', error);
     }
-    
+
     operations = [];
     journals = [];
     goals = { weekly: 0, monthly: 0 };
     highWaterMark = settings.initialBalance;
-    
+
     await saveData();
     updateUI();
     closeSettingsModal();
@@ -1115,28 +1117,28 @@ async function resetAllData() {
 function saveJournalEntry() {
     const date = document.getElementById('journal-date').value;
     const title = document.getElementById('journal-title').value.trim();
-    
+
     if (!date || !title) {
         alert('Por favor, completa todos los campos.');
         return;
     }
-    
+
     const entry = {
         id: Date.now().toString(),
         date: date,
         title: title,
         completed: false
     };
-    
+
     journals.push(entry);
-    
+
     // Guardar en localStorage
     const journalsKey = getJournalsKey(currentAccountId);
     localStorage.setItem(journalsKey, JSON.stringify(journals));
-    
+
     document.getElementById('journal-date').value = '';
     document.getElementById('journal-title').value = '';
-    
+
     displayJournalEntries();
     alert('Meta guardada correctamente.');
 }
@@ -1144,12 +1146,12 @@ function saveJournalEntry() {
 function displayJournalEntries() {
     const container = document.getElementById('journal-entries');
     const activeEntries = journals.filter(j => !j.completed);
-    
+
     if (activeEntries.length === 0) {
         container.innerHTML = '<p>No hay metas activas. ¡Crea una nueva meta!</p>';
         return;
     }
-    
+
     let html = '<div class="objetivos-list">';
     activeEntries.forEach(entry => {
         html += `
@@ -1196,12 +1198,12 @@ function deleteJournalEntry(id) {
 function displayCompletedJournals() {
     const container = document.getElementById('historial-metas-conseguidas');
     const completedEntries = journals.filter(j => j.completed);
-    
+
     if (completedEntries.length === 0) {
         container.innerHTML = '<p>No hay metas completadas aún.</p>';
         return;
     }
-    
+
     let html = '<div class="objetivos-list">';
     completedEntries.forEach(entry => {
         html += `
@@ -1220,11 +1222,11 @@ function displayCompletedJournals() {
 function saveGoals() {
     goals.weekly = parseFloat(document.getElementById('weekly-goal').value) || 0;
     goals.monthly = parseFloat(document.getElementById('monthly-goal').value) || 0;
-    
+
     // Guardar en localStorage
     const goalsKey = getGoalsKey(currentAccountId);
     localStorage.setItem(goalsKey, JSON.stringify(goals));
-    
+
     updateGoalsProgress();
     alert('Objetivos guardados correctamente.');
 }
@@ -1234,30 +1236,30 @@ function updateGoalsProgress() {
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay() + 1);
     startOfWeek.setHours(0, 0, 0, 0);
-    
+
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    
+
     const weeklyProfit = operations
         .filter(op => new Date(op.fecha) >= startOfWeek)
         .reduce((sum, op) => sum + op.importe, 0);
-    
+
     const monthlyProfit = operations
         .filter(op => new Date(op.fecha) >= startOfMonth)
         .reduce((sum, op) => sum + op.importe, 0);
-    
+
     const weeklyProgress = goals.weekly > 0 ? (weeklyProfit / goals.weekly) * 100 : 0;
     const monthlyProgress = goals.monthly > 0 ? (monthlyProfit / goals.monthly) * 100 : 0;
-    
+
     document.getElementById('weekly-goal-display').textContent = weeklyProfit.toFixed(2) + ' €';
     document.getElementById('weekly-progress-percentage').textContent = weeklyProgress.toFixed(1) + '%';
-    
+
     document.getElementById('monthly-goal-display').textContent = monthlyProfit.toFixed(2) + ' €';
     document.getElementById('monthly-progress-percentage').textContent = monthlyProgress.toFixed(1) + '%';
-    
-    document.getElementById('weekly-progress-detailed').textContent = 
+
+    document.getElementById('weekly-progress-detailed').textContent =
         `Progreso: ${weeklyProfit.toFixed(2)} € / ${goals.weekly.toFixed(2)} € (${weeklyProgress.toFixed(1)}%)`;
-    
-    document.getElementById('monthly-progress-detailed').textContent = 
+
+    document.getElementById('monthly-progress-detailed').textContent =
         `Progreso: ${monthlyProfit.toFixed(2)} € / ${goals.monthly.toFixed(2)} € (${monthlyProgress.toFixed(1)}%)`;
 }
 
@@ -1288,16 +1290,16 @@ function updateNewsStars(rating) {
 function loadChecklist() {
     const checklistKey = getChecklistKey(currentAccountId);
     const storedChecklist = localStorage.getItem(checklistKey);
-    
+
     let checklist = storedChecklist ? JSON.parse(storedChecklist) : getDefaultChecklist();
-    
+
     const listaTareas = document.getElementById('listaTareas');
     listaTareas.innerHTML = '';
-    
+
     checklist.forEach((item, index) => {
         const li = document.createElement('li');
         li.className = item.completed ? 'completed' : '';
-        
+
         if (isChecklistEditMode) {
             li.innerHTML = `
                 <input type="checkbox" ${item.completed ? 'checked' : ''} onchange="toggleChecklistItem(${index})" disabled>
@@ -1311,7 +1313,7 @@ function loadChecklist() {
                 ${item.completed ? '<span class="ok">✓</span>' : ''}
             `;
         }
-        
+
         listaTareas.appendChild(li);
     });
 }
@@ -1335,7 +1337,7 @@ function toggleChecklistItem(index) {
     const checklistKey = getChecklistKey(currentAccountId);
     const storedChecklist = localStorage.getItem(checklistKey);
     let checklist = storedChecklist ? JSON.parse(storedChecklist) : getDefaultChecklist();
-    
+
     checklist[index].completed = !checklist[index].completed;
     localStorage.setItem(checklistKey, JSON.stringify(checklist));
     loadChecklist();
@@ -1348,7 +1350,7 @@ function resetChecklist() {
     const checklistKey = getChecklistKey(currentAccountId);
     const storedChecklist = localStorage.getItem(checklistKey);
     let checklist = storedChecklist ? JSON.parse(storedChecklist) : getDefaultChecklist();
-    
+
     checklist.forEach(item => item.completed = false);
     localStorage.setItem(checklistKey, JSON.stringify(checklist));
     loadChecklist();
@@ -1356,7 +1358,7 @@ function resetChecklist() {
 
 function toggleChecklistEditMode() {
     isChecklistEditMode = !isChecklistEditMode;
-    
+
     if (isChecklistEditMode) {
         document.getElementById('edit-checklist-btn').style.display = 'none';
         document.getElementById('save-checklist-btn').style.display = 'inline-block';
@@ -1366,7 +1368,7 @@ function toggleChecklistEditMode() {
         document.getElementById('save-checklist-btn').style.display = 'none';
         document.getElementById('add-task-container').style.display = 'none';
     }
-    
+
     loadChecklist();
 }
 
@@ -1383,7 +1385,7 @@ function updateChecklistItemText(index, newText) {
     const checklistKey = getChecklistKey(currentAccountId);
     const storedChecklist = localStorage.getItem(checklistKey);
     let checklist = storedChecklist ? JSON.parse(storedChecklist) : getDefaultChecklist();
-    
+
     checklist[index].text = newText;
     localStorage.setItem(checklistKey, JSON.stringify(checklist));
 }
@@ -1392,11 +1394,11 @@ function removeChecklistItem(index) {
     if (!confirm('¿Estás seguro de que quieres eliminar esta tarea?')) {
         return;
     }
-    
+
     const checklistKey = getChecklistKey(currentAccountId);
     const storedChecklist = localStorage.getItem(checklistKey);
     let checklist = storedChecklist ? JSON.parse(storedChecklist) : getDefaultChecklist();
-    
+
     checklist.splice(index, 1);
     localStorage.setItem(checklistKey, JSON.stringify(checklist));
     loadChecklist();
@@ -1405,24 +1407,29 @@ function removeChecklistItem(index) {
 function addNewChecklistItem() {
     const newTaskInput = document.getElementById('new-task-input');
     const newText = newTaskInput.value.trim();
-    
+
     if (!newText) {
         alert('Por favor, escribe el texto de la nueva tarea.');
         return;
     }
-    
+
     const checklistKey = getChecklistKey(currentAccountId);
     const storedChecklist = localStorage.getItem(checklistKey);
     let checklist = storedChecklist ? JSON.parse(storedChecklist) : getDefaultChecklist();
-    
+
     checklist.push({ text: newText, completed: false });
     localStorage.setItem(checklistKey, JSON.stringify(checklist));
-    
+
     newTaskInput.value = '';
     loadChecklist();
 }
 
 // ==================== IMPORT CSV ====================
+function updateDisplay() {
+    updateUI();
+    renderOperations();
+}
+
 function openImportModal() {
     document.getElementById('import-modal').style.display = 'flex';
     document.getElementById('import-file').value = '';
@@ -1439,47 +1446,47 @@ function closeImportModal() {
 async function handleImportFileChange(event) {
     const file = event.target.files[0];
     if (!file) return;
-    
+
     if (!currentAccountId) {
         alert('Debes seleccionar una cuenta antes de importar');
         return;
     }
-    
+
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
         alert('Debes iniciar sesión para importar operaciones');
         return;
     }
-    
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('cuenta_id', currentAccountId);
     formData.append('user_id', user.id);
-    
+
     try {
         showImportStatus('Importando operaciones...', 'info');
-        
+
         const API_URL = 'https://72e80d21-4370-411c-a310-a1d0475a5589-00-2ol992mlaizrj.spock.replit.dev/api/importar-csv';
         console.log('Llamando a API:', API_URL);
-        
+
         const response = await fetch(API_URL, {
             method: 'POST',
             body: formData
         });
-        
+
         if (!response.ok) {
             throw new Error(`Error HTTP ${response.status}: ${response.statusText}`);
         }
-        
+
         const data = await response.json();
-        
+
         if (data.success && data.operaciones) {
             showImportStatus('Guardando en Supabase...', 'info');
-            
+
             // Guardar cada operación en Supabase
             let guardadas = 0;
             let errores = 0;
-            
+
             for (const op of data.operaciones) {
                 const operationData = {
                     user_id: user.id,
@@ -1498,11 +1505,11 @@ async function handleImportFileChange(event) {
                     notas: null,
                     media_url: null
                 };
-                
+
                 const { error } = await supabase
                     .from('operaciones')
                     .insert([operationData]);
-                
+
                 if (error) {
                     console.error('Error guardando operación en Supabase:', error);
                     errores++;
@@ -1510,13 +1517,13 @@ async function handleImportFileChange(event) {
                     guardadas++;
                 }
             }
-            
+
             showImportStatus(`Operaciones guardadas: ${guardadas}, Errores: ${errores}`, 'success');
             showImportPreview(data.operaciones);
-            
+
             // Recargar operaciones desde Supabase
             await setActiveAccount(currentAccountId);
-            
+
             setTimeout(() => {
                 closeImportModal();
                 alert(`Importación completada: ${guardadas} operaciones guardadas en Supabase.`);
@@ -1547,11 +1554,11 @@ function showImportStatus(message, type) {
 function showImportPreview(trades) {
     const previewDiv = document.getElementById('import-preview');
     const contentDiv = document.getElementById('import-preview-content');
-    
+
     let html = `<p style="color: #10b0b9; font-weight: bold;">Se importaron ${trades.length} operaciones:</p>`;
     html += '<table style="width: 100%; font-size: 12px; border-collapse: collapse;">';
     html += '<thead><tr><th style="padding: 5px; border-bottom: 1px solid #4b5563;">Fecha</th><th style="padding: 5px; border-bottom: 1px solid #4b5563;">Tipo</th><th style="padding: 5px; border-bottom: 1px solid #4b5563;">Activo</th><th style="padding: 5px; border-bottom: 1px solid #4b5563;">Contratos</th><th style="padding: 5px; border-bottom: 1px solid #4b5563;">Importe</th></tr></thead><tbody>';
-    
+
     trades.slice(0, 10).forEach(trade => {
         const typeText = trade.tipo === 'bullish' ? 'Alcista' : 'Bajista';
         const amountClass = trade.importe >= 0 ? 'positive' : 'negative';
@@ -1563,11 +1570,11 @@ function showImportPreview(trades) {
             <td style="padding: 5px; border-bottom: 1px solid #4b5563;" class="${amountClass}">${trade.importe.toFixed(2)} €</td>
         </tr>`;
     });
-    
+
     if (trades.length > 10) {
         html += `<tr><td colspan="5" style="padding: 5px; text-align: center; color: #b3b3b3;">... y ${trades.length - 10} operaciones más</td></tr>`;
     }
-    
+
     html += '</tbody></table>';
     contentDiv.innerHTML = html;
     previewDiv.style.display = 'block';
@@ -1578,7 +1585,7 @@ function toggleTheme() {
     document.body.classList.toggle('light-mode');
     const theme = document.body.classList.contains('light-mode') ? 'light' : 'dark';
     localStorage.setItem('theme', theme);
-    
+
     const themeToggle = document.getElementById('theme-toggle');
     themeToggle.textContent = theme === 'light' ? '☀️' : '🌙';
 }
@@ -1599,144 +1606,3 @@ function initRetosSemanales() {
     // (código muy extenso, incluido en el archivo original)
     console.log('Retos Semanales initialized');
 }
-// --- Supabase Initialization ---
-const SUPABASE_URL = 'https://bjjjutlfinxdwmifskdw.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable__Xw6vD7jogaABU81E_0HAA_mVOQFmLJ';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// --- Constants ---
-const ACCOUNTS_KEY = 'tradingAccounts';
-const ACTIVE_ACCOUNT_KEY = 'tradingActiveAccount';
-
-// --- State ---
-let accounts = [];
-let currentAccountId = null;
-let operations = [];
-let settings = { initialBalance: 50000, consistencyPercentage: 40, trailingDrawdownAmount: 2500 };
-let journals = [];
-let goals = { weekly: 0, monthly: 0 };
-let highWaterMark = 0;
-let drawdownFloor = 0;
-let showAllOperations = false;
-let importedOperations = [];
-
-// --- Auth Functions ---
-async function handleLogin() {
-    const email = document.getElementById('login-email').value.trim();
-    const password = document.getElementById('login-password').value;
-
-    if (!email || !password) {
-        alert('Por favor, completa todos los campos.');
-        return;
-    }
-
-    try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email: email,
-            password: password
-        });
-
-        if (error) throw error;
-
-        alert('Inicio de sesión exitoso');
-        await checkAuthState();
-    } catch (error) {
-        alert('Error al iniciar sesión: ' + error.message);
-    }
-}
-
-async function handleRegister() {
-    const email = document.getElementById('register-email').value.trim();
-    const password = document.getElementById('register-password').value;
-
-    if (!email || !password) {
-        alert('Por favor, completa todos los campos.');
-        return;
-    }
-
-    if (password.length < 6) {
-        alert('La contraseña debe tener al menos 6 caracteres.');
-        return;
-    }
-
-    try {
-        const { data, error } = await supabase.auth.signUp({
-            email: email,
-            password: password
-        });
-
-        if (error) throw error;
-
-        alert('Registro exitoso. Por favor, verifica tu email antes de iniciar sesión.');
-        toggleAuthForms();
-    } catch (error) {
-        alert('Error al registrarse: ' + error.message);
-    }
-}
-
-async function handleLogout() {
-    if (!confirm('¿Estás seguro de que quieres cerrar sesión?')) {
-        return;
-    }
-
-    try {
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
-
-        alert('Sesión cerrada correctamente');
-        await checkAuthState();
-    } catch (error) {
-        alert('Error al cerrar sesión: ' + error.message);
-    }
-}
-
-function toggleAuthForms() {
-    const loginForm = document.getElementById('login-form');
-    const registerForm = document.getElementById('register-form');
-
-    if (loginForm.style.display === 'none') {
-        loginForm.style.display = 'block';
-        registerForm.style.display = 'none';
-    } else {
-        loginForm.style.display = 'none';
-        registerForm.style.display = 'block';
-    }
-}
-
-async function checkAuthState() {
-    const { data: { session } } = await supabase.auth.getSession();
-
-    if (session) {
-        document.getElementById('auth-container').style.display = 'none';
-        document.getElementById('app-container').style.display = 'block';
-        
-        // Cargar datos del usuario después del login
-        loadAccounts();
-        const storedActive = localStorage.getItem(ACTIVE_ACCOUNT_KEY);
-        if (storedActive && accounts.find(a => a.id === storedActive)) {
-            await setActiveAccount(storedActive);
-        } else if (accounts.length === 0) {
-            openCreateAccountModal();
-        } else {
-            await setActiveAccount(accounts[0].id);
-        }
-        
-        document.getElementById('date').value = new Date().toISOString().split('T')[0];
-        openTab('dashboard');
-    } else {
-        document.getElementById('auth-container').style.display = 'block';
-        document.getElementById('app-container').style.display = 'none';
-    }
-}
-
-// Escuchar cambios en el estado de autenticación
-supabase.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_IN') {
-        checkAuthState();
-    } else if (event === 'SIGNED_OUT') {
-        checkAuthState();
-    }
-});
-
-// Resto del código JavaScript existente...
-// (Aquí iría todo el resto de tu código JavaScript del archivo index.html)
