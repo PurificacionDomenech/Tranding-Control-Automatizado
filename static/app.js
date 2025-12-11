@@ -1489,151 +1489,81 @@ function openImportModal() {
     document.getElementById('import-file').value = '';
     document.getElementById('import-status').style.display = 'none';
     document.getElementById('import-preview').style.display = 'none';
-    document.getElementById('btn-import-confirm').disabled = true;
     importedOperations = [];
 }
 
 function closeImportModal() {
     document.getElementById('import-modal').style.display = 'none';
+    document.getElementById('import-file').value = '';
 }
 
-function handleImportFileChange(event) {
+async function handleImportFileChange(event) {
     const file = event.target.files[0];
     if (!file) return;
     
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const content = e.target.result;
-        parseCSV(content);
-    };
-    reader.readAsText(file);
-}
-
-function parseCSV(content) {
-    const lines = content.split('\n').filter(line => line.trim());
-    
-    if (lines.length === 0) {
-        showImportStatus('El archivo está vacío', 'error');
+    if (!currentAccountId) {
+        alert('Debes seleccionar una cuenta antes de importar');
         return;
     }
     
-    const entries = [];
-    const exits = [];
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('cuenta_id', currentAccountId);
     
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i];
-        const parts = line.split(';');
+    try {
+        showImportStatus('Importando operaciones...', 'info');
         
-        if (parts.length < 12) continue;
+        const response = await fetch(`${API_BASE_URL}/api/importar-csv`, {
+            method: 'POST',
+            body: formData
+        });
         
-        const instrument = parts[0].trim();
-        const account = parts[1].trim();
-        const entryTime = parts[2].trim();
-        const exitTime = parts[3].trim();
-        const entryPrice = parseFloat(parts[4].replace(',', '.'));
-        const exitPrice = parseFloat(parts[5].replace(',', '.'));
-        const quantity = parseInt(parts[6]);
-        const profitLoss = parseFloat(parts[7].replace(',', '.'));
-        const commission = parseFloat(parts[8].replace(',', '.'));
-        const cumProfit = parseFloat(parts[9].replace(',', '.'));
-        const mfe = parseFloat(parts[10].replace(',', '.'));
-        const mae = parseFloat(parts[11].replace(',', '.'));
+        const data = await response.json();
         
-        if (entryTime && !exitTime) {
-            entries.push({
-                instrument,
-                account,
-                entryTime,
-                entryPrice,
-                quantity,
-                entryId: i
-            });
-        } else if (exitTime) {
-            exits.push({
-                instrument,
-                account,
-                exitTime,
-                exitPrice,
-                quantity,
-                profitLoss,
-                commission,
-                exitId: i
-            });
-        }
-    }
-    
-    const trades = [];
-    
-    exits.forEach(exit => {
-        const matchingEntry = entries.find(entry => 
-            entry.instrument === exit.instrument &&
-            entry.account === exit.account &&
-            entry.quantity === exit.quantity
-        );
-        
-        if (matchingEntry) {
-            const entryDate = matchingEntry.entryTime.split(' ')[0];
-            const entryTimeOnly = matchingEntry.entryTime.split(' ')[1];
-            const exitTimeOnly = exit.exitTime.split(' ')[1];
+        if (data.success) {
+            showImportStatus(data.mensaje, 'success');
             
-            let multiplier = 1;
-            if (exit.instrument === 'MNQ' || exit.instrument === 'NQ') {
-                multiplier = 5;
-            } else if (exit.instrument === 'MES' || exit.instrument === 'ES') {
-                multiplier = 12.5;
+            // Mostrar vista previa de las operaciones importadas
+            if (data.operaciones && data.operaciones.length > 0) {
+                importedOperations = data.operaciones;
+                showImportPreview(data.operaciones);
             }
             
-            const ticks = (exit.exitPrice - matchingEntry.entryPrice) * exit.quantity;
-            const profit = ticks * multiplier - exit.commission;
+            // Recargar operaciones
+            await setActiveAccount(currentAccountId);
             
-            const tipo = ticks > 0 ? 'bullish' : 'bearish';
-            
-            trades.push({
-                fecha: entryDate,
-                tipo: tipo,
-                activo: exit.instrument,
-                estrategia: null,
-                contratos: exit.quantity,
-                tipoEntrada: null,
-                tipoSalida: null,
-                horaEntrada: entryTimeOnly,
-                horaSalida: exitTimeOnly,
-                importe: profit,
-                mood: null,
-                notas: `Importado desde NinjaTrader (Cuenta: ${exit.account})`,
-                mediaUrl: null
-            });
-            
-            const entryIndex = entries.indexOf(matchingEntry);
-            if (entryIndex !== -1) {
-                entries.splice(entryIndex, 1);
-            }
+            setTimeout(() => {
+                closeImportModal();
+                alert(`Importación exitosa: ${data.total_importadas} operaciones importadas, ${data.total_duplicados} duplicados omitidos.`);
+            }, 1500);
+        } else {
+            showImportStatus('Error: ' + (data.error || 'Error desconocido'), 'error');
         }
-    });
-    
-    if (trades.length === 0) {
-        showImportStatus('No se encontraron operaciones válidas en el archivo', 'error');
-        return;
+    } catch (error) {
+        console.error('Error al importar:', error);
+        showImportStatus('Error al importar: ' + error.message, 'error');
     }
-    
-    importedOperations = trades;
-    showImportPreview(trades);
-    document.getElementById('btn-import-confirm').disabled = false;
 }
 
 function showImportStatus(message, type) {
     const statusDiv = document.getElementById('import-status');
     statusDiv.textContent = message;
     statusDiv.style.display = 'block';
-    statusDiv.style.backgroundColor = type === 'error' ? '#ef44bc6c' : '#10b0b94d';
-    statusDiv.style.color = type === 'error' ? '#ffffff' : '#ffffff';
+    if (type === 'error') {
+        statusDiv.style.backgroundColor = '#ef44bc6c';
+    } else if (type === 'success') {
+        statusDiv.style.backgroundColor = '#10b0b94d';
+    } else {
+        statusDiv.style.backgroundColor = '#4b5563';
+    }
+    statusDiv.style.color = '#ffffff';
 }
 
 function showImportPreview(trades) {
     const previewDiv = document.getElementById('import-preview');
     const contentDiv = document.getElementById('import-preview-content');
     
-    let html = `<p style="color: #10b0b9; font-weight: bold;">Se importarán ${trades.length} operaciones:</p>`;
+    let html = `<p style="color: #10b0b9; font-weight: bold;">Se importaron ${trades.length} operaciones:</p>`;
     html += '<table style="width: 100%; font-size: 12px; border-collapse: collapse;">';
     html += '<thead><tr><th style="padding: 5px; border-bottom: 1px solid #4b5563;">Fecha</th><th style="padding: 5px; border-bottom: 1px solid #4b5563;">Tipo</th><th style="padding: 5px; border-bottom: 1px solid #4b5563;">Activo</th><th style="padding: 5px; border-bottom: 1px solid #4b5563;">Contratos</th><th style="padding: 5px; border-bottom: 1px solid #4b5563;">Importe</th></tr></thead><tbody>';
     
@@ -1656,53 +1586,6 @@ function showImportPreview(trades) {
     html += '</tbody></table>';
     contentDiv.innerHTML = html;
     previewDiv.style.display = 'block';
-}
-
-async function confirmImport() {
-    if (importedOperations.length === 0) {
-        alert('No hay operaciones para importar');
-        return;
-    }
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/importar-csv`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                cuenta_id: currentAccountId,
-                operaciones: importedOperations
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            importedOperations.forEach(trade => {
-                operations.unshift({
-                    ...trade,
-                    id: Date.now().toString() + Math.random().toString(36).substr(2, 9)
-                });
-            });
-            
-            operations.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-            
-            saveData();
-            updateUI();
-            
-            closeImportModal();
-            
-            setTimeout(() => {
-                alert(data.mensaje);
-            }, 0);
-        } else {
-            alert('Error al importar: ' + (data.error || 'Error desconocido'));
-        }
-    } catch (error) {
-        console.error('Error en importación:', error);
-        alert('Error al importar las operaciones: ' + error.message);
-    }
 }
 
 // ==================== THEME ====================
