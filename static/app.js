@@ -342,64 +342,6 @@ function getChecklistKey(accountId) {
 async function saveData() {
     if (!currentAccountId) return;
     
-    try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            console.error('No user logged in');
-            return;
-        }
-
-        // Save operations to Supabase
-        for (const op of operations) {
-            const operationData = {
-                user_id: user.id,
-                cuenta_id: currentAccountId,
-                fecha: op.fecha,
-                tipo: op.tipo || null,
-                activo: op.activo || null,
-                estrategia: op.estrategia || null,
-                contratos: op.contratos || null,
-                tipo_entrada: op.tipoEntrada || null,
-                tipo_salida: op.tipoSalida || null,
-                hora_entrada: op.horaEntrada || null,
-                hora_salida: op.horaSalida || null,
-                importe: op.importe,
-                animo: op.mood || null,
-                notas: op.notas || null,
-                media_url: op.mediaUrl || null
-            };
-
-            if (op.id && op.id.toString().length > 13) {
-                // Existing Supabase operation - update
-                const { error } = await supabase
-                    .from('operaciones')
-                    .update(operationData)
-                    .eq('id', op.id)
-                    .eq('user_id', user.id);
-
-                if (error) {
-                    console.error('Error updating operation:', error);
-                }
-            } else {
-                // New operation - insert
-                const { data, error } = await supabase
-                    .from('operaciones')
-                    .insert([operationData])
-                    .select();
-
-                if (error) {
-                    console.error('Error inserting operation:', error);
-                } else if (data && data.length > 0) {
-                    op.id = data[0].id;
-                }
-            }
-        }
-
-        console.log('Operations saved to Supabase');
-    } catch (error) {
-        console.error('Error in saveData:', error);
-    }
-
     // Save settings, goals, journals and HWM to localStorage
     const settingsKey = getSettingsKey(currentAccountId);
     localStorage.setItem(settingsKey, JSON.stringify(settings));
@@ -489,58 +431,45 @@ async function handleTradingFormSubmit(e) {
                 tipo: tipo || null,
                 activo: activo || null,
                 estrategia: estrategia || null,
-                contratos: contratos || null,
+                contratos: contratos,
                 tipo_entrada: tipoEntrada || null,
                 tipo_salida: tipoSalida || null,
                 hora_entrada: horaEntrada || null,
                 hora_salida: horaSalida || null,
-                importe: importe,
+                importe: parseFloat(importe),
                 animo: mood || null,
                 notas: notas || null,
                 media_url: mediaUrl || null
             };
 
-            const { data, error } = await supabase
+            console.log('Guardando operación en Supabase:', operationData);
+
+            const { data: insertedData, error } = await supabase
                 .from('operaciones')
                 .insert([operationData])
                 .select();
 
             if (error) {
-                console.error('Error al guardar operación:', error);
+                console.error('Error de Supabase:', error);
                 alert('Error al guardar la operación: ' + error.message);
                 return;
             }
 
-            if (data && data.length > 0) {
-                const operation = {
-                    id: data[0].id,
-                    fecha,
-                    tipo,
-                    activo,
-                    estrategia,
-                    contratos,
-                    tipoEntrada,
-                    tipoSalida,
-                    horaEntrada,
-                    horaSalida,
-                    importe,
-                    mood,
-                    notas,
-                    mediaUrl,
-                    newsRating
-                };
+            if (insertedData && insertedData.length > 0) {
+                console.log('Operación guardada exitosamente:', insertedData[0]);
                 
-                operations.unshift(operation);
-                operations.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-                
-                updateUI();
+                // Recargar operaciones desde Supabase
+                await setActiveAccount(currentAccountId);
                 
                 document.getElementById('trading-form').reset();
                 document.getElementById('date').value = new Date().toISOString().split('T')[0];
                 document.getElementById('journal-news').value = '0';
                 updateNewsStars(0);
                 
-                alert('Operación guardada correctamente.');
+                alert('Operación guardada correctamente en Supabase.');
+            } else {
+                console.error('No se recibieron datos después de insertar');
+                alert('Error: No se pudo confirmar el guardado de la operación');
             }
         } catch (error) {
             console.error('Error al guardar operación:', error);
@@ -1506,7 +1435,6 @@ async function handleImportFileChange(event) {
         return;
     }
     
-    // Obtener el user_id de Supabase
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
         alert('Debes iniciar sesión para importar operaciones');
@@ -1528,53 +1456,56 @@ async function handleImportFileChange(event) {
         
         const data = await response.json();
         
-        if (data.success) {
-            showImportStatus(data.mensaje, 'success');
+        if (data.success && data.operaciones) {
+            showImportStatus('Guardando en Supabase...', 'info');
             
-            // Guardar las operaciones en Supabase
-            if (data.operaciones && data.operaciones.length > 0) {
-                importedOperations = data.operaciones;
-                showImportPreview(data.operaciones);
+            // Guardar cada operación en Supabase
+            let guardadas = 0;
+            let errores = 0;
+            
+            for (const op of data.operaciones) {
+                const operationData = {
+                    user_id: user.id,
+                    cuenta_id: currentAccountId,
+                    fecha: op.fecha,
+                    tipo: op.tipo || null,
+                    activo: op.activo || null,
+                    estrategia: op.estrategia || null,
+                    contratos: op.contratos || null,
+                    tipo_entrada: op.tipoEntrada || null,
+                    tipo_salida: op.tipoSalida || null,
+                    hora_entrada: op.hora_entrada || null,
+                    hora_salida: op.hora_salida || null,
+                    importe: parseFloat(op.importe) || 0,
+                    animo: null,
+                    notas: null,
+                    media_url: null
+                };
                 
-                // Insertar en Supabase
-                for (const op of data.operaciones) {
-                    const operationData = {
-                        user_id: user.id,
-                        cuenta_id: currentAccountId,
-                        fecha: op.fecha,
-                        tipo: op.tipo || null,
-                        activo: op.activo || null,
-                        estrategia: op.estrategia || null,
-                        contratos: op.contratos || null,
-                        tipo_entrada: op.tipoEntrada || null,
-                        tipo_salida: op.tipoSalida || null,
-                        hora_entrada: op.hora_entrada || null,
-                        hora_salida: op.hora_salida || null,
-                        importe: op.importe,
-                        animo: null,
-                        notas: null,
-                        media_url: null
-                    };
-                    
-                    const { error } = await supabase
-                        .from('operaciones')
-                        .insert([operationData]);
-                    
-                    if (error) {
-                        console.error('Error guardando en Supabase:', error);
-                    }
+                const { error } = await supabase
+                    .from('operaciones')
+                    .insert([operationData]);
+                
+                if (error) {
+                    console.error('Error guardando operación en Supabase:', error);
+                    errores++;
+                } else {
+                    guardadas++;
                 }
             }
             
-            // Recargar operaciones
+            showImportStatus(`Operaciones guardadas: ${guardadas}, Errores: ${errores}`, 'success');
+            showImportPreview(data.operaciones);
+            
+            // Recargar operaciones desde Supabase
             await setActiveAccount(currentAccountId);
             
             setTimeout(() => {
                 closeImportModal();
-                alert(`Importación exitosa: ${data.total_importadas} operaciones importadas, ${data.total_duplicados} duplicados omitidos.`);
-            }, 1500);
+                alert(`Importación completada: ${guardadas} operaciones guardadas en Supabase.`);
+            }, 2000);
         } else {
-            showImportStatus('Error: ' + (data.error || 'Error desconocido'), 'error');
+            showImportStatus('Error: ' + (data.error || 'Error procesando el archivo'), 'error');
         }
     } catch (error) {
         console.error('Error al importar:', error);
