@@ -354,7 +354,8 @@ async function saveData() {
     const hwmKey = getHWMKey(currentAccountId);
     localStorage.setItem(hwmKey, highWaterMark.toString());
     
-    // Operations are now ONLY saved to Supabase, not localStorage
+    // ⚠️ IMPORTANTE: Las operaciones NUNCA se guardan en localStorage
+    // SOLO se guardan en Supabase a través de handleTradingFormSubmit
 }
 
 // ==================== TAB NAVIGATION ====================
@@ -421,8 +422,7 @@ async function handleTradingFormSubmit(e) {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) {
-                alert('Debes iniciar sesión para guardar operaciones');
-                return;
+                throw new Error('Debes iniciar sesión para guardar operaciones');
             }
 
             const operationData = {
@@ -443,7 +443,7 @@ async function handleTradingFormSubmit(e) {
                 media_url: mediaUrl || null
             };
 
-            console.log('Guardando operación en Supabase:', operationData);
+            console.log('🔄 Guardando operación en Supabase...', operationData);
 
             const { data: insertedData, error } = await supabase
                 .from('operaciones')
@@ -451,30 +451,29 @@ async function handleTradingFormSubmit(e) {
                 .select();
 
             if (error) {
-                console.error('Error de Supabase:', error);
-                alert('Error al guardar la operación: ' + error.message);
-                return;
+                throw new Error('Error de Supabase: ' + error.message);
             }
 
-            if (insertedData && insertedData.length > 0) {
-                console.log('Operación guardada exitosamente:', insertedData[0]);
-                
-                // Recargar operaciones desde Supabase
-                await setActiveAccount(currentAccountId);
-                
-                document.getElementById('trading-form').reset();
-                document.getElementById('date').value = new Date().toISOString().split('T')[0];
-                document.getElementById('journal-news').value = '0';
-                updateNewsStars(0);
-                
-                alert('Operación guardada correctamente en Supabase.');
-            } else {
-                console.error('No se recibieron datos después de insertar');
-                alert('Error: No se pudo confirmar el guardado de la operación');
+            if (!insertedData || insertedData.length === 0) {
+                throw new Error('No se recibió confirmación de Supabase');
             }
+
+            console.log('✅ Operación guardada exitosamente en Supabase:', insertedData[0]);
+            
+            // Recargar operaciones desde Supabase
+            await setActiveAccount(currentAccountId);
+            
+            // Limpiar formulario
+            document.getElementById('trading-form').reset();
+            document.getElementById('date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('journal-news').value = '0';
+            updateNewsStars(0);
+            
+            alert('✅ Operación guardada correctamente en Supabase.');
+            
         } catch (error) {
-            console.error('Error al guardar operación:', error);
-            alert('Error al guardar la operación: ' + error.message);
+            console.error('❌ ERROR al guardar operación:', error);
+            alert('❌ ERROR: No se pudo guardar la operación en Supabase.\n\n' + error.message + '\n\nVerifica tu conexión a internet y que estés autenticado.');
         }
     }
 }
