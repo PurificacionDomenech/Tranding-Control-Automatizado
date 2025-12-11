@@ -398,8 +398,6 @@ function openTab(tabName, buttonElement) {
     if (tabName === 'historial') {
         filterOperations();
     } else if (tabName === 'objetivos') {
-        document.getElementById('weekly-goal').value = goals.weekly || '';
-        document.getElementById('monthly-goal').value = goals.monthly || '';
         displayJournalEntries();
         updateGoalsProgress();
     } else if (tabName === 'checklist') {
@@ -1140,7 +1138,7 @@ async function resetAllData() {
 }
 
 // ==================== GOALS ====================
-async function saveJournalEntry() {
+function saveJournalEntry() {
     const date = document.getElementById('journal-date').value;
     const title = document.getElementById('journal-title').value.trim();
 
@@ -1158,8 +1156,9 @@ async function saveJournalEntry() {
 
     journals.push(entry);
 
-    // Guardar en localStorage para persistencia
-    await saveData();
+    // Guardar en localStorage
+    const journalsKey = getJournalsKey(currentAccountId);
+    localStorage.setItem(journalsKey, JSON.stringify(journals));
 
     document.getElementById('journal-date').value = '';
     document.getElementById('journal-title').value = '';
@@ -1244,12 +1243,13 @@ function displayCompletedJournals() {
     container.innerHTML = html;
 }
 
-async function saveGoals() {
+function saveGoals() {
     goals.weekly = parseFloat(document.getElementById('weekly-goal').value) || 0;
     goals.monthly = parseFloat(document.getElementById('monthly-goal').value) || 0;
 
-    // Guardar en localStorage para persistencia
-    await saveData();
+    // Guardar en localStorage
+    const goalsKey = getGoalsKey(currentAccountId);
+    localStorage.setItem(goalsKey, JSON.stringify(goals));
 
     updateGoalsProgress();
     alert('Objetivos guardados correctamente.');
@@ -1274,37 +1274,17 @@ function updateGoalsProgress() {
     const weeklyProgress = goals.weekly > 0 ? (weeklyProfit / goals.weekly) * 100 : 0;
     const monthlyProgress = goals.monthly > 0 ? (monthlyProfit / goals.monthly) * 100 : 0;
 
-    // Actualizar Dashboard
-    const weeklyGoalDisplay = document.getElementById('weekly-goal-display');
-    if (weeklyGoalDisplay) {
-        weeklyGoalDisplay.textContent = goals.weekly.toFixed(2) + ' €';
-    }
-    
-    const monthlyGoalDisplay = document.getElementById('monthly-goal-display');
-    if (monthlyGoalDisplay) {
-        monthlyGoalDisplay.textContent = goals.monthly.toFixed(2) + ' €';
-    }
+    document.getElementById('weekly-goal-display').textContent = weeklyProfit.toFixed(2) + ' €';
+    document.getElementById('weekly-progress-percentage').textContent = weeklyProgress.toFixed(1) + '%';
 
-    const weeklyProgressPercentage = document.getElementById('weekly-progress-percentage');
-    if (weeklyProgressPercentage) {
-        weeklyProgressPercentage.textContent = weeklyProgress.toFixed(1) + '%';
-    }
+    document.getElementById('monthly-goal-display').textContent = monthlyProfit.toFixed(2) + ' €';
+    document.getElementById('monthly-progress-percentage').textContent = monthlyProgress.toFixed(1) + '%';
 
-    const monthlyProgressPercentage = document.getElementById('monthly-progress-percentage');
-    if (monthlyProgressPercentage) {
-        monthlyProgressPercentage.textContent = monthlyProgress.toFixed(1) + '%';
-    }
+    document.getElementById('weekly-progress-detailed').textContent =
+        `Progreso: ${weeklyProfit.toFixed(2)} € / ${goals.weekly.toFixed(2)} € (${weeklyProgress.toFixed(1)}%)`;
 
-    // Actualizar página de Objetivos
-    const weeklyProgressDetailed = document.getElementById('weekly-progress-detailed');
-    if (weeklyProgressDetailed) {
-        weeklyProgressDetailed.textContent = `Progreso: ${weeklyProfit.toFixed(2)} € / ${goals.weekly.toFixed(2)} € (${weeklyProgress.toFixed(1)}%)`;
-    }
-
-    const monthlyProgressDetailed = document.getElementById('monthly-progress-detailed');
-    if (monthlyProgressDetailed) {
-        monthlyProgressDetailed.textContent = `Progreso: ${monthlyProfit.toFixed(2)} € / ${goals.monthly.toFixed(2)} € (${monthlyProgress.toFixed(1)}%)`;
-    }
+    document.getElementById('monthly-progress-detailed').textContent =
+        `Progreso: ${monthlyProfit.toFixed(2)} € / ${goals.monthly.toFixed(2)} € (${monthlyProgress.toFixed(1)}%)`;
 }
 
 // ==================== MOOD & NEWS ====================
