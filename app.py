@@ -33,30 +33,30 @@ def traducir_operacion_grid(ejecucion_ninja):
     entrada_salida = ejecucion_ninja.get('E/X', '')
     nombre = ejecucion_ninja.get('Nombre', '')
     cuenta = ejecucion_ninja.get('Nombre de cuenta de pantalla', '')
-    
+
     precio_str = precio.replace(',', '.').replace('$', '').strip()
     try:
         precio_float = float(precio_str)
     except:
         precio_float = 0.0
-    
+
     try:
         cantidad_int = int(cantidad)
     except:
         cantidad_int = 1
-    
+
     fecha, hora = parsear_tiempo(tiempo)
-    
+
     if 'Comprar' in accion:
         tipo = 'Alcista (Compra)'
     elif 'Vender' in accion:
         tipo = 'Bajista (Venta)'
     else:
         tipo = accion
-    
+
     es_entrada = 'Entrada' in entrada_salida
     es_salida = 'Salida' in entrada_salida
-    
+
     return {
         'instrumento': instrumento,
         'tipo_operacion': tipo,
@@ -82,37 +82,37 @@ def traducir_operacion_orders(orden_ninja):
     cuenta = orden_ninja.get('Nombre de cuenta de pantalla', '')
     estado = orden_ninja.get('Estado', '')
     completo = orden_ninja.get('Completo', '0')
-    
+
     if estado != 'Completo':
         return None
-    
+
     precio_str = str(precio).replace(',', '.').replace('$', '').strip()
     try:
         precio_float = float(precio_str)
     except:
         precio_float = 0.0
-    
+
     if precio_float == 0:
         return None
-    
+
     try:
         cantidad_int = int(completo) if completo else int(cantidad)
     except:
         cantidad_int = 1
-    
+
     fecha, hora = parsear_tiempo(tiempo)
-    
+
     if 'Comprar' in accion:
         tipo = 'Alcista (Compra)'
     elif 'Vender' in accion:
         tipo = 'Bajista (Venta)'
     else:
         tipo = accion
-    
+
     nombre_lower = nombre.lower() if nombre else ''
     es_entrada = 'entry' in nombre_lower
     es_salida = any(x in nombre_lower for x in ['exit', 'stop', 'target', 'cerrar'])
-    
+
     return {
         'instrumento': instrumento,
         'tipo_operacion': tipo,
@@ -131,7 +131,7 @@ def parsear_tiempo(tiempo):
     """Parsea el tiempo en diferentes formatos"""
     if not tiempo:
         return '', ''
-    
+
     formatos = ['%d/%m/%Y %H:%M:%S', '%d/%m/%Y %H:%M', '%Y-%m-%d %H:%M:%S']
     for fmt in formatos:
         try:
@@ -145,13 +145,13 @@ def emparejar_operaciones(operaciones_traducidas):
     """Empareja entradas con salidas para calcular P/L"""
     operaciones_completas = []
     entradas_pendientes = {}
-    
+
     for op in operaciones_traducidas:
         if op is None:
             continue
-            
+
         key = (op['cuenta'], op['instrumento'])
-        
+
         if op['es_entrada']:
             if key not in entradas_pendientes:
                 entradas_pendientes[key] = []
@@ -159,7 +159,7 @@ def emparejar_operaciones(operaciones_traducidas):
         elif op['es_salida']:
             if key in entradas_pendientes and entradas_pendientes[key]:
                 entrada = entradas_pendientes[key].pop(0)
-                
+
                 if 'MNQ' in op['instrumento']:
                     valor_punto = 2
                 elif 'NQ' in op['instrumento'] and 'MNQ' not in op['instrumento']:
@@ -170,12 +170,12 @@ def emparejar_operaciones(operaciones_traducidas):
                     valor_punto = 50
                 else:
                     valor_punto = 2
-                
+
                 if 'Comprar' in entrada['accion_original']:
                     pnl = (op['precio'] - entrada['precio']) * op['contratos'] * valor_punto
                 else:
                     pnl = (entrada['precio'] - op['precio']) * op['contratos'] * valor_punto
-                
+
                 operacion_completa = {
                     'fecha': entrada['fecha'],
                     'tipo': entrada['tipo_operacion'],
@@ -190,7 +190,7 @@ def emparejar_operaciones(operaciones_traducidas):
                     'precio_salida': op['precio']
                 }
                 operaciones_completas.append(operacion_completa)
-    
+
     return operaciones_completas
 
 @app.route('/')
@@ -204,32 +204,31 @@ def importar_csv():
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'No se proporcionó archivo'}), 400
-        
-        # Obtener cuenta_id y user_id del formulario
+
         cuenta_id = request.form.get('cuenta_id')
         user_id = request.form.get('user_id')
-        
+
         if not cuenta_id:
             return jsonify({'error': 'cuenta_id es requerido'}), 400
-        
+
         if not user_id:
             return jsonify({'error': 'user_id es requerido'}), 400
-        
+
         file = request.files['file']
         if file.filename == '':
             return jsonify({'error': 'Nombre de archivo vacío'}), 400
-        
+
         content = file.read().decode('utf-8')
-        
+
         reader = csv.DictReader(io.StringIO(content), delimiter=';')
         operaciones_raw = list(reader)
-        
+
         if not operaciones_raw:
             return jsonify({'error': 'El archivo está vacío'}), 400
-        
+
         headers = list(operaciones_raw[0].keys())
         formato = detectar_formato_csv(headers)
-        
+
         operaciones_traducidas = []
         for op in operaciones_raw:
             if formato == 'grid':
@@ -238,21 +237,20 @@ def importar_csv():
                 traducida = traducir_operacion_orders(op)
             else:
                 return jsonify({'error': f'Formato CSV no reconocido. Headers: {headers[:5]}'}), 400
-            
+
             if traducida:
                 operaciones_traducidas.append(traducida)
-        
+
         def parse_datetime(op):
             try:
                 return datetime.strptime(f"{op['fecha']} {op['hora']}", '%Y-%m-%d %H:%M:%S')
             except:
                 return datetime.min
-        
+
         operaciones_traducidas.sort(key=parse_datetime)
-        
+
         operaciones_completas = emparejar_operaciones(operaciones_traducidas)
-        
-        # Formatear operaciones para el frontend
+
         operaciones_formateadas = []
         for op in operaciones_completas:
             operaciones_formateadas.append({
@@ -267,7 +265,7 @@ def importar_csv():
                 'hora_salida': op.get('hora_salida'),
                 'importe': op.get('importe') or 0
             })
-        
+
         return jsonify({
             'success': True,
             'operaciones': operaciones_formateadas,
@@ -277,30 +275,29 @@ def importar_csv():
             'formato_detectado': formato,
             'mensaje': f'Archivo procesado correctamente. Se importaron {len(operaciones_formateadas)} operaciones.'
         })
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/operacion', methods=['POST'])
 def crear_operacion():
     """Endpoint para crear una operación individual"""
     data = request.get_json()
-    
+
     if not data:
         return jsonify({'error': 'No se proporcionaron datos'}), 400
-    
+
     cuenta_id = data.get('cuenta_id')
     if not cuenta_id:
         return jsonify({'error': 'cuenta_id es requerido'}), 400
-    
+
     conn = None
     cursor = None
-    
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             INSERT INTO operaciones (
                 cuenta_id, instrumento, estrategia, fecha_operacion,
@@ -323,16 +320,16 @@ def crear_operacion():
             data.get('notas_psicologia'),
             data.get('captura_url')
         ))
-        
+
         operacion_id = cursor.fetchone()[0]
         conn.commit()
-        
+
         return jsonify({
             'success': True,
             'mensaje': 'Operación guardada correctamente',
             'datos': [{'id': operacion_id}]
         })
-        
+
     except Exception as e:
         if conn:
             conn.rollback()
@@ -348,35 +345,35 @@ def crear_operacion():
 def importar_cuenta():
     """Endpoint para importar operaciones evitando duplicados basado en clave única"""
     data = request.get_json()
-    
+
     if not data:
         return jsonify({'error': 'No se proporcionaron datos'}), 400
-    
+
     cuenta_id = data.get('cuenta_id')
     operaciones = data.get('operaciones', [])
-    
+
     if not cuenta_id:
         return jsonify({'error': 'cuenta_id es requerido'}), 400
-    
+
     if not operaciones:
         return jsonify({'error': 'No hay operaciones para importar'}), 400
-    
+
     total_recibidas = len(operaciones)
     conn = None
     cursor = None
-    
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # Obtener todas las operaciones existentes para esta cuenta
         # Clave única: cuenta_id + fecha_operacion + hora_entrada + instrumento
         cursor.execute("""
             SELECT fecha_operacion, hora_entrada, hora_salida, instrumento, resultado_pnl
-            FROM operaciones 
+            FROM operaciones
             WHERE cuenta_id = %s
         """, (cuenta_id,))
-        
+
         # Crear un conjunto con las claves únicas de operaciones existentes
         existentes = set()
         for row in cursor.fetchall():
@@ -385,14 +382,14 @@ def importar_cuenta():
             hora_sal = str(row[2]) if row[2] else None
             instrumento = row[3]
             pnl = float(row[4]) if row[4] else 0.0
-            
+
             # Clave compuesta más robusta para evitar duplicados
             clave = (fecha_op, hora_ent, hora_sal, instrumento, round(pnl, 2))
             existentes.add(clave)
-        
+
         operaciones_nuevas = []
         duplicados = 0
-        
+
         # Filtrar operaciones duplicadas
         for op in operaciones:
             fecha_op = op.get('fecha_operacion') or op.get('fecha')
@@ -400,17 +397,17 @@ def importar_cuenta():
             hora_sal = op.get('hora_salida')
             instrumento = op.get('instrumento') or op.get('activo')
             pnl = float(op.get('resultado_pnl') or op.get('importe') or 0)
-            
+
             # Construir clave única para esta operación
             clave = (fecha_op, hora_ent, hora_sal, instrumento, round(pnl, 2))
-            
+
             if clave in existentes:
                 duplicados += 1
             else:
                 operaciones_nuevas.append(op)
                 # Agregar al conjunto para evitar duplicados dentro del mismo lote
                 existentes.add(clave)
-        
+
         importadas = 0
         if operaciones_nuevas:
             valores = []
@@ -430,19 +427,19 @@ def importar_cuenta():
                     op.get('notas_psicologia'),
                     op.get('captura_url')
                 ))
-            
+
             execute_values(cursor, """
                 INSERT INTO operaciones (
-                    cuenta_id, instrumento, estrategia, fecha_operacion, 
+                    cuenta_id, instrumento, estrategia, fecha_operacion,
                     hora_entrada, hora_salida, precio_entrada, precio_salida,
                     contratos, resultado_pnl, tipo_operacion, notas_psicologia, captura_url
                 ) VALUES %s
             """, valores)
-            
+
             importadas = len(operaciones_nuevas)
-        
+
         conn.commit()
-        
+
         return jsonify({
             'success': True,
             'mensaje': f'Importación completada. Se recibieron {total_recibidas} operaciones, se importaron {importadas} operaciones nuevas y se omitieron {duplicados} duplicados.',
@@ -450,7 +447,7 @@ def importar_cuenta():
             'total_importadas': importadas,
             'total_duplicados': duplicados
         })
-        
+
     except Exception as e:
         if conn:
             conn.rollback()
@@ -466,14 +463,14 @@ def importar_cuenta():
 def obtener_operaciones():
     """Endpoint para obtener operaciones de una cuenta"""
     cuenta_id = request.args.get('cuenta_id')
-    
+
     conn = None
     cursor = None
-    
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         if cuenta_id:
             cursor.execute("""
                 SELECT id, cuenta_id, instrumento, estrategia, fecha_operacion,
@@ -491,7 +488,7 @@ def obtener_operaciones():
                 FROM operaciones
                 ORDER BY fecha_operacion, hora_entrada
             """)
-        
+
         operaciones = []
         for row in cursor.fetchall():
             operaciones.append({
@@ -510,12 +507,12 @@ def obtener_operaciones():
                 'notas_psicologia': row[12],
                 'captura_url': row[13]
             })
-        
+
         return jsonify({
             'success': True,
             'operaciones': operaciones
         })
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
@@ -530,19 +527,19 @@ def eliminar_operacion(operacion_id):
     """Endpoint para eliminar una operación específica"""
     conn = None
     cursor = None
-    
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         cursor.execute("DELETE FROM operaciones WHERE id = %s", (operacion_id,))
         conn.commit()
-        
+
         return jsonify({
             'success': True,
             'mensaje': 'Operación eliminada correctamente'
         })
-        
+
     except Exception as e:
         if conn:
             conn.rollback()
@@ -558,17 +555,17 @@ def eliminar_operacion(operacion_id):
 def actualizar_operacion(operacion_id):
     """Endpoint para actualizar una operación existente"""
     data = request.get_json()
-    
+
     if not data:
         return jsonify({'error': 'No se proporcionaron datos'}), 400
-    
+
     conn = None
     cursor = None
-    
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             UPDATE operaciones SET
                 instrumento = %s,
@@ -599,14 +596,14 @@ def actualizar_operacion(operacion_id):
             data.get('captura_url'),
             operacion_id
         ))
-        
+
         conn.commit()
-        
+
         return jsonify({
             'success': True,
             'mensaje': 'Operación actualizada correctamente'
         })
-        
+
     except Exception as e:
         if conn:
             conn.rollback()
@@ -623,22 +620,22 @@ def eliminar_operaciones_cuenta(cuenta_id):
     """Endpoint para eliminar todas las operaciones de una cuenta"""
     conn = None
     cursor = None
-    
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         cursor.execute("DELETE FROM operaciones WHERE cuenta_id = %s", (cuenta_id,))
         deleted_count = cursor.rowcount
-        
+
         conn.commit()
-        
+
         return jsonify({
             'success': True,
             'mensaje': f'Se eliminaron {deleted_count} operaciones de la cuenta.',
             'total_eliminadas': deleted_count
         })
-        
+
     except Exception as e:
         if conn:
             conn.rollback()
