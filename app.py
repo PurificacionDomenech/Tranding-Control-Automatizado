@@ -316,12 +316,21 @@ def importar_cuenta():
                 operaciones_nuevas.append(op)
                 existentes.add(clave)
         
+        # Obtener user_id de la cuenta
+        cursor.execute("SELECT user_id FROM cuentas_trading WHERE id = %s", (cuenta_id,))
+        cuenta_result = cursor.fetchone()
+        if not cuenta_result:
+            return jsonify({'error': 'Cuenta no encontrada'}), 404
+        
+        user_id = cuenta_result[0]
+        
         importadas = 0
         if operaciones_nuevas:
             valores = []
             for op in operaciones_nuevas:
                 valores.append((
                     cuenta_id,
+                    user_id,  # Ahora incluimos user_id
                     op.get('instrumento') or op.get('activo'),
                     op.get('estrategia'),
                     op.get('fecha_operacion') or op.get('fecha'),
@@ -338,7 +347,7 @@ def importar_cuenta():
             
             execute_values(cursor, """
                 INSERT INTO operaciones (
-                    cuenta_id, instrumento, estrategia, fecha_operacion, 
+                    cuenta_id, user_id, instrumento, estrategia, fecha_operacion, 
                     hora_entrada, hora_salida, precio_entrada, precio_salida,
                     contratos, resultado_pnl, tipo_operacion, notas_psicologia, captura_url
                 ) VALUES %s
