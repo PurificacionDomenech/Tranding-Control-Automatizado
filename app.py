@@ -262,69 +262,6 @@ def importar_csv():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/operacion', methods=['POST'])
-def crear_operacion():
-    """Endpoint para crear una operación individual en Supabase"""
-    try:
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({'error': 'No se proporcionaron datos'}), 400
-        
-        cuenta_id = data.get('cuenta_id')
-        
-        if not cuenta_id:
-            return jsonify({'error': 'cuenta_id es requerido'}), 400
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            INSERT INTO operaciones (
-                cuenta_id, instrumento, estrategia, fecha_operacion,
-                hora_entrada, hora_salida, tipo_entrada, tipo_salida,
-                contratos, resultado_pnl, tipo_operacion, notas_psicologia, captura_url
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING id
-        """, (
-            cuenta_id,
-            data.get('instrumento'),
-            data.get('estrategia'),
-            data.get('fecha_operacion'),
-            data.get('hora_entrada'),
-            data.get('hora_salida'),
-            data.get('tipo_entrada'),
-            data.get('tipo_salida'),
-            data.get('contratos'),
-            data.get('resultado_pnl', 0),
-            data.get('tipo_operacion'),
-            data.get('notas_psicologia'),
-            data.get('captura_url')
-        ))
-        
-        operacion_id = cursor.fetchone()[0]
-        conn.commit()
-        
-        cursor.close()
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'id': operacion_id,
-            'mensaje': 'Operación guardada correctamente'
-        })
-        
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        return jsonify({'error': str(e)}), 500
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
-
-
 @app.route('/importar-cuenta', methods=['POST'])
 def importar_cuenta():
     """Endpoint para importar operaciones evitando duplicados"""
