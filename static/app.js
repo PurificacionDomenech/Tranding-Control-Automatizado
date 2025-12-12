@@ -1547,14 +1547,16 @@ async function handleImportFileChange(event) {
                 }
             }
 
+            showImportStatus(`Operaciones guardadas: ${guardadas}, Errores: ${errores}`, 'success');
+            showImportPreview(data.operaciones);
+
             // Recargar operaciones desde Supabase
             await setActiveAccount(currentAccountId);
 
-            // Cerrar el modal inmediatamente
-            closeImportModal();
-            
-            // Mostrar el resultado después de cerrar
-            alert(`Importación completada: ${guardadas} operaciones guardadas en Supabase.${errores > 0 ? ` (${errores} errores)` : ''}`);
+            setTimeout(() => {
+                closeImportModal();
+                alert(`Importación completada: ${guardadas} operaciones guardadas en Supabase.`);
+            }, 2000);
         } else {
             showImportStatus('Error: ' + (data.error || 'Error procesando el archivo'), 'error');
         }
