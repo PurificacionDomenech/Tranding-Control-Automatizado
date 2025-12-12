@@ -1547,14 +1547,14 @@ async function handleImportFileChange(event) {
                 }
             }
 
+            // Cerrar el modal ANTES de recargar
+            closeImportModal();
+
             // Recargar operaciones desde Supabase
             await setActiveAccount(currentAccountId);
-
-            // Cerrar el modal inmediatamente
-            closeImportModal();
             
-            // Mostrar el resultado después de cerrar
-            alert(`Importación completada: ${guardadas} operaciones guardadas en Supabase.${errores > 0 ? ` (${errores} errores)` : ''}`);
+            // Mostrar el resultado después de cerrar y recargar
+            alert(`✅ Importación completada: ${guardadas} operaciones guardadas en Supabase.${errores > 0 ? ` (${errores} errores)` : ''}`);
         } else {
             showImportStatus('Error: ' + (data.error || 'Error procesando el archivo'), 'error');
         }
