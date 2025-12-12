@@ -460,8 +460,8 @@ async function handleTradingFormSubmit(e) {
                 contratos: contratos,
                 tipo_entrada: tipoEntrada || null,
                 tipo_salida: tipoSalida || null,
-                hora_entrada: horaEntrada,
-                hora_salida: horaSalida,
+                hora_entrada: horaEntrada || null,
+                hora_salida: horaSalida || null,
                 resultado_pnl: parseFloat(importe),
                 notas_psicologia: mood || null,
                 captura_url: mediaUrl || null
