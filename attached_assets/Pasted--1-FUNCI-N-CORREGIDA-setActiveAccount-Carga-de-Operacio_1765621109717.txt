@@ -1,0 +1,330 @@
+// ==================== 1. FUNCIÓN CORREGIDA: setActiveAccount (Carga de Operaciones) ====================
+async function setActiveAccount(id) {
+    currentAccountId = id;
+    localStorage.setItem(ACTIVE_ACCOUNT_KEY, currentAccountId);
+    const settingsKey = getSettingsKey(currentAccountId);
+    const storedSettings = localStorage.getItem(settingsKey);
+    settings = storedSettings ? JSON.parse(storedSettings) : { initialBalance: 50000, consistencyPercentage: 40, trailingDrawdownAmount: 2500 };
+
+    // Load operations ONLY from Supabase - NO FALLBACK to localStorage
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            console.log('No hay usuario autenticado, las operaciones se cargarán después del login');
+            operations = [];
+        } else {
+            // ✅ CARGAR DIRECTAMENTE DESDE SUPABASE
+            const { data: supabaseOps, error } = await supabase
+                .from('operaciones')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('cuenta_id', currentAccountId)
+                .order('fecha', { ascending: false });
+
+            if (error) {
+                throw new Error('Error cargando operaciones de Supabase: ' + error.message);
+            }
+
+            // Mapear campos de Supabase a formato local
+            operations = (supabaseOps || []).map(op => ({
+                id: op.id,
+                fecha: op.fecha,
+                tipo: op.tipo,
+                activo: op.activo,
+                estrategia: op.estrategia,
+                contratos: op.contratos,
+                tipoEntrada: op.tipo_entrada,
+                tipoSalida: op.tipo_salida,
+                horaEntrada: op.hora_entrada,
+                horaSalida: op.hora_salida,
+                importe: parseFloat(op.importe) || 0,
+                mood: op.animo,
+                notas: op.notas,
+                mediaUrl: op.media_url,
+                newsRating: 0
+            }));
+            console.log('✓ Operaciones cargadas de Supabase:', operations.length);
+        }
+    } catch (error) {
+        console.error('❌ ERROR CRÍTICO cargando operaciones:', error);
+        operations = [];
+    }
+
+    operations.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+    const goalsKey = getGoalsKey(currentAccountId);
+    const storedGoals = localStorage.getItem(goalsKey);
+    goals = storedGoals ? JSON.parse(storedGoals) : { weekly: 0, monthly: 0 };
+
+    const journalsKey = getJournalsKey(currentAccountId);
+    // ... (El resto de la función setActiveAccount sigue igual)
+    // ...
+}
+
+
+// ==================== 2. FUNCIÓN CORREGIDA: handleTradingFormSubmit (Guardado Manual) ====================
+async function handleTradingFormSubmit(e) {
+    e.preventDefault();
+
+    const fecha = document.getElementById('date').value;
+    const tipo = document.getElementById('type').value;
+    const activo = getCustomOrSelectedValue('activo', 'custom-activo-input');
+    const estrategia = getCustomOrSelectedValue('estrategia', 'custom-estrategia-input');
+    const contratos = parseInt(document.getElementById('contracts').value) || null;
+    const tipoEntrada = getCustomOrSelectedValue('entry-type', 'custom-entry-type-input');
+    const tipoSalida = getCustomOrSelectedValue('exit-type', 'custom-exit-type-input');
+    const horaEntrada = document.getElementById('entry-time').value || null;
+    const horaSalida = document.getElementById('exit-time').value || null;
+    const importe = parseFloat(document.getElementById('amount').value);
+    const mood = document.getElementById('journal-mood').value || null;
+    const notas = document.getElementById('notes').value || null;
+    const newsRating = parseInt(document.getElementById('journal-news').value) || 0;
+
+    if (!fecha || isNaN(importe)) {
+        alert('Por favor, completa al menos la fecha y el importe.');
+        return;
+    }
+
+    const mediaFile = document.getElementById('trade-media').files[0];
+    let mediaUrl = null;
+
+    if (mediaFile) {
+        const reader = new FileReader();
+        reader.onload = async function(event) {
+            mediaUrl = event.target.result;
+            await saveOperation();
+        };
+        reader.readAsDataURL(mediaFile);
+    } else {
+        await saveOperation();
+    }
+
+    async function saveOperation() {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                throw new Error('Debes iniciar sesión para guardar operaciones');
+            }
+
+            // Preparar datos con los nombres de campos CORRECTOS para Supabase
+            const operationData = {
+                user_id: user.id,              // ID del usuario autenticado
+                cuenta_id: currentAccountId,   // ID de la cuenta de trading
+                fecha: fecha,                  // Fecha de la operación
+                tipo: tipo || null,            // Tipo: Alcista/Bajista
+                activo: activo || null,        // Instrumento: Nasdaq, Oro, etc.
+                estrategia: estrategia || null, // Estrategia utilizada
+                contratos: contratos,          // Número de contratos
+                tipo_entrada: tipoEntrada || null,  // Tipo de entrada
+                tipo_salida: tipoSalida || null,    // Tipo de salida
+                hora_entrada: horaEntrada || null,  // Hora de entrada
+                hora_salida: horaSalida || null,    // Hora de salida
+                importe: parseFloat(importe),       // Resultado P&L
+                animo: mood || null,                // Estado de ánimo
+                notas: notas || null,               // Notas adicionales
+                media_url: mediaUrl || null         // URL de imagen/video
+            };
+
+            console.log('🔄 Guardando operación en Supabase...', operationData);
+
+            // ✅ INSERTAR DIRECTAMENTE EN SUPABASE (sin usar backend API)
+            const { data, error } = await supabase
+                .from('operaciones')
+                .insert([operationData])
+                .select();
+
+            if (error) {
+                throw new Error('Error guardando en Supabase: ' + error.message);
+            }
+
+            console.log('✅ Operación guardada exitosamente:', data);
+            alert('Operación guardada correctamente');
+
+            // Recargar operaciones desde Supabase
+            await setActiveAccount(currentAccountId);
+            
+            // Limpiar formulario
+            document.getElementById('trading-form').reset();
+            document.getElementById('date').value = new Date().toISOString().split('T')[0];
+            
+            updateUI();
+        } catch (error) {
+            console.error('❌ Error guardando operación:', error);
+            alert('Error al guardar la operación: ' + error.message);
+        }
+    }
+}
+
+
+// ==================== 3. FUNCIÓN CORREGIDA: handleImportFileChange (Importación CSV) ====================
+async function handleImportFileChange(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        const text = e.target.result;
+        
+        // 1. Parsear el CSV
+        const lines = text.split('\n').filter(line => line.trim() !== '');
+        if (lines.length < 2) {
+            alert('El archivo CSV está vacío o no tiene datos.');
+            return;
+        }
+
+        // Asumimos que la primera línea son los encabezados y usamos el separador ';'
+        const dataLines = lines.slice(1); 
+        
+        // 2. Agrupar las líneas de ejecución en operaciones completas
+        const trades = {};
+        let errores = 0;
+
+        for (const line of dataLines) {
+            const values = line.split(';').map(v => v.trim()); 
+            
+            // Mapeo de columnas del CSV de NinjaTrader
+            const [
+                instrumento, 
+                accion, 
+                cantidad, 
+                precio, 
+                tiempo, 
+                id, 
+                eX, 
+                posicion, 
+                idOrden, 
+                nombre, 
+                comision, 
+                tarifa, 
+                nombreCuenta, 
+                conexion
+            ] = values;
+
+            // Usamos el ID de Orden para agrupar las entradas y salidas
+            const tradeId = idOrden; 
+
+            if (!tradeId || !eX) continue;
+
+            if (!trades[tradeId]) {
+                trades[tradeId] = {
+                    instrumento,
+                    cuenta: nombreCuenta,
+                    entradas: [],
+                    salidas: [],
+                    comisionTotal: 0,
+                    tarifaTotal: 0,
+                    idOrden: tradeId
+                };
+            }
+
+            const execution = {
+                accion,
+                cantidad: parseInt(cantidad),
+                precio: parseFloat(precio.replace(',', '.')), // Reemplazar coma por punto para decimales
+                tiempo,
+                eX,
+                comision: parseFloat(comision.replace('$', '').replace(',', '.').trim()) || 0,
+                tarifa: parseFloat(tarifa.replace(',', '.').trim()) || 0
+            };
+
+            if (eX === 'Entrada') {
+                trades[tradeId].entradas.push(execution);
+            } else if (eX === 'Salida') {
+                trades[tradeId].salidas.push(execution);
+            }
+            
+            trades[tradeId].comisionTotal += execution.comision;
+            trades[tradeId].tarifaTotal += execution.tarifa;
+        }
+
+        // 3. Procesar las operaciones completas y calcular P&L
+        const completedOperations = [];
+        for (const tradeId in trades) {
+            const trade = trades[tradeId];
+            
+            // Solo procesamos trades que tienen al menos una entrada y una salida
+            if (trade.entradas.length === 0 || trade.salidas.length === 0) {
+                console.warn(`Trade incompleto (ID: ${tradeId}). Saltando.`);
+                continue; 
+            }
+
+            // Tomamos la primera entrada y la última salida para el cálculo
+            const entrada = trade.entradas[0];
+            const salida = trade.salidas[trade.salidas.length - 1];
+            
+            let pnl = 0;
+            const precioEntrada = entrada.precio;
+            const precioSalida = salida.precio;
+            const contratos = entrada.cantidad;
+            
+            // Cálculo del P&L
+            if (entrada.accion === 'Comprar') { // Operación Alcista (Long)
+                pnl = (precioSalida - precioEntrada) * contratos;
+            } else if (entrada.accion === 'Vender') { // Operación Bajista (Short)
+                pnl = (precioEntrada - precioSalida) * contratos;
+            }
+            
+            // Ajustar por comisiones y tarifas
+            pnl -= (trade.comisionTotal + trade.tarifaTotal);
+            
+            // Separar fecha y hora
+            const [fechaEntrada, horaEntrada] = entrada.tiempo.split(' ');
+            const [fechaSalida, horaSalida] = salida.tiempo.split(' ');
+            
+            // Mapeo final a la estructura de Supabase
+            const operationData = {
+                // Campos de Supabase
+                cuenta_id: currentAccountId,
+                fecha: fechaEntrada, 
+                tipo: entrada.accion === 'Comprar' ? 'Alcista (Compra)' : 'Bajista (Venta)',
+                activo: trade.instrumento,
+                contratos: contratos,
+                importe: parseFloat(pnl.toFixed(2)),
+                hora_entrada: horaEntrada,
+                hora_salida: horaSalida,
+                
+                // Campos manuales (con valores por defecto para permitir la edición posterior)
+                estrategia: 'Importada', 
+                tipo_entrada: 'Importada', 
+                tipo_salida: 'Importada',   
+                animo: null,
+                media_url: null,
+                notas: `Trade ID: ${trade.idOrden}. P&L Bruto: ${pnl + trade.comisionTotal + trade.tarifaTotal}. Comisiones: ${trade.comisionTotal + trade.tarifaTotal}.`,
+            };
+            
+            completedOperations.push(operationData);
+        }
+
+        // 4. Guardar las operaciones completadas en Supabase
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            alert('Debes iniciar sesión para importar operaciones.');
+            return;
+        }
+
+        let guardadas = 0;
+        for (const op of completedOperations) {
+            op.user_id = user.id; // Agregar user_id para RLS
+            
+            // Insertar en Supabase
+            const { error } = await supabase
+                .from('operaciones')
+                .insert([op]);
+
+            if (error) {
+                console.error('Error guardando operación importada en Supabase:', error);
+                errores++;
+            } else {
+                guardadas++;
+            }
+        }
+
+        alert(`Importación finalizada. Operaciones guardadas: ${guardadas}. Errores: ${errores}.`);
+        
+        // Recargar la UI
+        await setActiveAccount(currentAccountId);
+        closeImportModal();
+    };
+
+    reader.readAsText(file);
+}
