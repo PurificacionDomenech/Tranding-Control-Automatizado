@@ -251,7 +251,7 @@ async function setActiveAccount(id) {
     const storedSettings = localStorage.getItem(settingsKey);
     settings = storedSettings ? JSON.parse(storedSettings) : { initialBalance: 50000, consistencyPercentage: 40, trailingDrawdownAmount: 2500 };
 
-    // Cargar operaciones DIRECTAMENTE de Supabase
+    // Load operations ONLY from Supabase - NO FALLBACK to localStorage
     try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
@@ -454,26 +454,26 @@ async function handleTradingFormSubmit(e) {
 
         // Preparar datos con los nombres de campos CORRECTOS para Supabase
         const operationData = {
-            user_id: user.id,
-            cuenta_id: currentAccountId,
-            fecha: fecha,
-            tipo: tipo || null,
-            activo: activo || null,
-            estrategia: estrategia || null,
-            contratos: contratos,
-            tipo_entrada: tipoEntrada || null,
-            tipo_salida: tipoSalida || null,
-            hora_entrada: horaEntrada || null,
-            hora_salida: horaSalida || null,
-            importe: parseFloat(importe),
-            animo: mood || null,
-            notas: notas || null,
-            media_url: mediaUrl || null
+            user_id: user.id,              // ID del usuario autenticado
+            cuenta_id: currentAccountId,   // ID de la cuenta de trading
+            fecha: fecha,                  // Fecha de la operación
+            tipo: tipo || null,            // Tipo: Alcista/Bajista
+            activo: activo || null,        // Instrumento: Nasdaq, Oro, etc.
+            estrategia: estrategia || null, // Estrategia utilizada
+            contratos: contratos,          // Número de contratos
+            tipo_entrada: tipoEntrada || null,  // Tipo de entrada
+            tipo_salida: tipoSalida || null,    // Tipo de salida
+            hora_entrada: horaEntrada || null,  // Hora de entrada
+            hora_salida: horaSalida || null,    // Hora de salida
+            importe: parseFloat(importe),       // Resultado P&L
+            animo: mood || null,                // Estado de ánimo
+            notas: notas || null,               // Notas adicionales
+            media_url: mediaUrl || null         // URL de imagen/video
         };
 
         console.log('🔄 Guardando operación en Supabase...', operationData);
 
-        // INSERTAR DIRECTAMENTE EN SUPABASE
+        // INSERTAR DIRECTAMENTE EN SUPABASE (sin usar backend API)
         const { data, error } = await supabase
             .from('operaciones')
             .insert([operationData])
@@ -484,30 +484,10 @@ async function handleTradingFormSubmit(e) {
         }
 
         console.log('✅ Operación guardada exitosamente:', data);
-        
-        // Agregar operación al array local con mapeo correcto
-        const newOperation = {
-            id: data[0].id,
-            fecha: data[0].fecha,
-            tipo: data[0].tipo,
-            activo: data[0].activo,
-            estrategia: data[0].estrategia,
-            contratos: data[0].contratos,
-            tipoEntrada: data[0].tipo_entrada,
-            tipoSalida: data[0].tipo_salida,
-            horaEntrada: data[0].hora_entrada,
-            horaSalida: data[0].hora_salida,
-            importe: parseFloat(data[0].importe) || 0,
-            mood: data[0].animo,
-            notas: data[0].notas,
-            mediaUrl: data[0].media_url,
-            newsRating: 0
-        };
-        
-        operations.push(newOperation);
-        operations.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-        
         alert('Operación guardada correctamente');
+
+        // Recargar operaciones desde Supabase
+        await setActiveAccount(currentAccountId);
         
         // Limpiar formulario
         document.getElementById('trading-form').reset();
@@ -1497,23 +1477,24 @@ async function handleImportFileChange(event) {
     reader.onload = async function(e) {
         const text = e.target.result;
         
-        // 1. Parsear el CSV con separador ;
+        // 1. Parsear el CSV
         const lines = text.split('\n').filter(line => line.trim() !== '');
         if (lines.length < 2) {
             alert('El archivo CSV está vacío o no tiene datos.');
             return;
         }
 
+        // Asumimos que la primera línea son los encabezados y usamos el separador ';'
         const dataLines = lines.slice(1); 
         
-        // 2. Agrupar las líneas de ejecución por ID de Orden
+        // 2. Agrupar las líneas de ejecución en operaciones completas
         const trades = {};
         let errores = 0;
 
         for (const line of dataLines) {
             const values = line.split(';').map(v => v.trim()); 
             
-            // Mapeo de columnas del CSV de NinjaTrader Grid
+            // Mapeo de columnas del CSV de NinjaTrader
             const [
                 instrumento, 
                 accion, 
@@ -1531,6 +1512,7 @@ async function handleImportFileChange(event) {
                 conexion
             ] = values;
 
+            // Usamos el ID de Orden para agrupar las entradas y salidas
             const tradeId = idOrden; 
 
             if (!tradeId || !eX) continue;
@@ -1550,7 +1532,7 @@ async function handleImportFileChange(event) {
             const execution = {
                 accion,
                 cantidad: parseInt(cantidad),
-                precio: parseFloat(precio.replace(',', '.')),
+                precio: parseFloat(precio.replace(',', '.')), // Reemplazar coma por punto para decimales
                 tiempo,
                 eX,
                 comision: parseFloat(comision.replace('$', '').replace(',', '.').trim()) || 0,
@@ -1567,16 +1549,18 @@ async function handleImportFileChange(event) {
             trades[tradeId].tarifaTotal += execution.tarifa;
         }
 
-        // 3. Procesar operaciones completas y calcular P&L
+        // 3. Procesar las operaciones completas y calcular P&L
         const completedOperations = [];
         for (const tradeId in trades) {
             const trade = trades[tradeId];
             
+            // Solo procesamos trades que tienen al menos una entrada y una salida
             if (trade.entradas.length === 0 || trade.salidas.length === 0) {
                 console.warn(`Trade incompleto (ID: ${tradeId}). Saltando.`);
                 continue; 
             }
 
+            // Tomamos la primera entrada y la última salida para el cálculo
             const entrada = trade.entradas[0];
             const salida = trade.salidas[trade.salidas.length - 1];
             
@@ -1585,42 +1569,45 @@ async function handleImportFileChange(event) {
             const precioSalida = salida.precio;
             const contratos = entrada.cantidad;
             
-            // Calcular P&L según tipo de operación
-            if (entrada.accion === 'Comprar') {
+            // Cálculo del P&L
+            if (entrada.accion === 'Comprar') { // Operación Alcista (Long)
                 pnl = (precioSalida - precioEntrada) * contratos;
-            } else if (entrada.accion === 'Vender') {
+            } else if (entrada.accion === 'Vender') { // Operación Bajista (Short)
                 pnl = (precioEntrada - precioSalida) * contratos;
             }
             
-            // Ajustar por comisiones
+            // Ajustar por comisiones y tarifas
             pnl -= (trade.comisionTotal + trade.tarifaTotal);
             
             // Separar fecha y hora
             const [fechaEntrada, horaEntrada] = entrada.tiempo.split(' ');
             const [fechaSalida, horaSalida] = salida.tiempo.split(' ');
             
-            // Preparar datos para Supabase
+            // Mapeo final a la estructura de Supabase
             const operationData = {
+                // Campos de Supabase
                 cuenta_id: currentAccountId,
                 fecha: fechaEntrada, 
-                tipo: entrada.accion === 'Comprar' ? 'bullish' : 'bearish',
+                tipo: entrada.accion === 'Comprar' ? 'Alcista (Compra)' : 'Bajista (Venta)',
                 activo: trade.instrumento,
                 contratos: contratos,
                 importe: parseFloat(pnl.toFixed(2)),
                 hora_entrada: horaEntrada,
                 hora_salida: horaSalida,
+                
+                // Campos manuales (con valores por defecto para permitir la edición posterior)
                 estrategia: 'Importada', 
                 tipo_entrada: 'Importada', 
                 tipo_salida: 'Importada',   
                 animo: null,
                 media_url: null,
-                notas: `Importado de NinjaTrader. ID Orden: ${trade.idOrden}. Comisiones: $${(trade.comisionTotal + trade.tarifaTotal).toFixed(2)}`
+                notas: `Trade ID: ${trade.idOrden}. P&L Bruto: ${pnl + trade.comisionTotal + trade.tarifaTotal}. Comisiones: ${trade.comisionTotal + trade.tarifaTotal}.`,
             };
             
             completedOperations.push(operationData);
         }
 
-        // 4. Guardar en Supabase
+        // 4. Guardar las operaciones completadas en Supabase
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
             alert('Debes iniciar sesión para importar operaciones.');
@@ -1629,23 +1616,24 @@ async function handleImportFileChange(event) {
 
         let guardadas = 0;
         for (const op of completedOperations) {
-            op.user_id = user.id;
+            op.user_id = user.id; // Agregar user_id para RLS
             
+            // Insertar en Supabase
             const { error } = await supabase
                 .from('operaciones')
                 .insert([op]);
 
             if (error) {
-                console.error('Error guardando operación importada:', error);
+                console.error('Error guardando operación importada en Supabase:', error);
                 errores++;
             } else {
                 guardadas++;
             }
         }
 
-        alert(`✅ Importación finalizada.\nOperaciones guardadas: ${guardadas}\nErrores: ${errores}`);
+        alert(`Importación finalizada. Operaciones guardadas: ${guardadas}. Errores: ${errores}.`);
         
-        // Recargar operaciones
+        // Recargar la UI
         await setActiveAccount(currentAccountId);
         closeImportModal();
     };
